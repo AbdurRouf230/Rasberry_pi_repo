@@ -1,0 +1,104 @@
+================================================================
+Debian OS Yolo / Comparison
+YOLO26n vs YOLO11n vs YOLOv8n vs MobileNetV3-SSDLite vs EfficientDet-Lite0
+================================================================
+
+Same labeled test set for every model: coco128 (128 COCO images + boxes).
+Downloaded once to testdata/coco128. Order is frozen in testdata/IMAGE_LIST.txt.
+
+Live camera has NO labels, so live is for speed feel only.
+mAP / precision / recall come from:  python3 compare.py bench
+
+Run one model at a time. A Pi 4B cannot hold five detectors in RAM.
+
+
+----------------------------------------------------------------
+Setup
+----------------------------------------------------------------
+  cd ~/Rasberry_pi_repo
+  git pull origin main
+  cd ~/Rasberry_pi_repo/Debian\ OS\ Yolo
+  source .venv/bin/activate
+  cd Comparison
+
+  Optional, only if EfficientDet-Lite0 is skipped:
+    python -m pip install tflite-runtime
+
+  YOLO26n / YOLO11n / YOLOv8n download .pt on first use.
+  SSDLite downloads torchvision weights on first use.
+  EfficientDet-Lite0 downloads the Coral .tflite (~4 MB).
+
+
+----------------------------------------------------------------
+1. Live — one model, popup window
+----------------------------------------------------------------
+  python3 compare.py live --model yolo26n --imgsz 320 --conf 0.35
+  python3 compare.py live --model yolo11n --imgsz 320 --conf 0.35
+  python3 compare.py live --model yolov8n --imgsz 320 --conf 0.35
+  python3 compare.py live --model ssdlite_mv3 --imgsz 320 --conf 0.35
+  python3 compare.py live --model efficientdet_lite0 --imgsz 320 --conf 0.35
+
+  q or Esc quits.
+  Writes:
+    results/live_<model>_YYYYMMDD_HHMMSS/inference.csv
+    results/live_summary.csv   (mean ms / FPS per session)
+
+
+----------------------------------------------------------------
+2. Bench — same coco128 set, all five models, graphs
+----------------------------------------------------------------
+  python3 compare.py bench --imgsz 320 --conf 0.35
+
+  First run downloads coco128 (~7 MB) then runs all images for each
+  model in order (several minutes on a Pi 4B).
+
+  Writes:
+    results/bench.json
+    results/bench_table.csv
+    results/bench_<model>.csv     per-image infer_ms
+    results/infer_ms.png
+    results/fps.png
+    results/map50.png
+    results/map50_95.png
+    results/precision.png
+    results/recall.png
+    results/comparison_overview.png   2x2: ms, FPS, mAP50, mAP50-95
+
+  Subset (debug):
+    python3 compare.py bench --models yolo26n yolov8n --max-images 20
+
+
+----------------------------------------------------------------
+3. Report — reprint table, redraw graphs from bench.json
+----------------------------------------------------------------
+  python3 compare.py report
+
+  Open:
+    eog results/comparison_overview.png
+    # or
+    python3 -c "from PIL import Image; Image.open('results/comparison_overview.png').show()"
+
+
+----------------------------------------------------------------
+What each number means
+----------------------------------------------------------------
+  mean_ms / FPS     time of predict() only, same imgsz 320, conf 0.35
+  mAP50             mean per-class AP at IoU 0.50 on coco128 GT
+  mAP50-95          mean AP at IoU 0.50:0.05:0.95
+  precision/recall  IoU 0.50, same conf 0.35
+
+  This is NOT full COCO val2017. It is a fair same-128-image comparison.
+
+
+----------------------------------------------------------------
+Files in this folder
+----------------------------------------------------------------
+  compare.py       CLI: live | bench | report
+  detectors.py     YOLO26n, YOLO11n, YOLOv8n, SSDLite, EfficientDet-Lite0
+  dataset.py       coco128 download + frozen IMAGE_LIST.txt
+  metrics.py       mAP + matplotlib graphs
+  testdata/        coco128 (gitignored after download)
+  weights/         efficientdet tflite (gitignored)
+  results/         CSV, JSON, PNG
+  CODE_COMMANDS.txt  this file
+================================================================

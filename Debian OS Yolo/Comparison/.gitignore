@@ -1,0 +1,11 @@
+testdata/coco128/
+testdata/*.zip
+testdata/IMAGE_LIST.txt
+weights/
+results/**/*.csv
+results/**/*.json
+results/**/*.png
+results/**/*.jpg
+__pycache__/
+*.pt
+*.tflite

@@ -17,3 +17,4 @@ miniconda.sh.gz
 *.sh.gz
 yolov8*.pt
 yolo11*.pt
+yolo26*.pt

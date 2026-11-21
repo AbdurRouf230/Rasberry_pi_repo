@@ -159,6 +159,20 @@ q or Esc closes live_detect.py. Ctrl+C stops the benches.
 
 
 ----------------------------------------------------------------
+8b. Comparison/  (five models, same coco128 test set)
+----------------------------------------------------------------
+  YOLO26n, YOLO11n, YOLOv8n, MobileNetV3-SSDLite, EfficientDet-Lite0
+  Details: Comparison/CODE_COMMANDS.txt
+
+  cd ~/Rasberry_pi_repo/Debian\ OS\ Yolo
+  source .venv/bin/activate
+  cd Comparison
+  python3 compare.py live --model yolo26n --imgsz 320 --conf 0.35
+  python3 compare.py bench --imgsz 320 --conf 0.35
+  python3 compare.py report
+
+
+----------------------------------------------------------------
 9. Typical order on this Pi
 ----------------------------------------------------------------
   cd ~/Rasberry_pi_repo/Debian\ OS\ Yolo
