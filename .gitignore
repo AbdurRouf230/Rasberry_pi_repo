@@ -13,3 +13,5 @@ results/**/*.csv
 Thumbs.db
 miniconda.sh.gz
 *.sh.gz
+yolov8*.pt
+yolo11*.pt

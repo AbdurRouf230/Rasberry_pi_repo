@@ -8,6 +8,14 @@ On the Pi (Debian 13), after cloning:
   python3 bench_camera.py --imgsz 320 --conf 0.35
   python3 bench_images.py --imgsz 320 --conf 0.35
 
+Live window, general 80-class COCO model (person, car, bottle, …).
+Run on the Pi desktop / AnyDesk so a window can open:
+
+  python3 live_detect.py --imgsz 320 --conf 0.35
+
+First run downloads yolov8n.pt. q or Esc closes the window.
+Box-only model instead:  python3 live_detect.py --weights weights/best.pt
+
 If install failed with "No space left on device":
   pip pulled CUDA PyTorch (Pi has no NVIDIA GPU). Free space, then rerun:
 

@@ -51,7 +51,12 @@ Point the ribbon camera at a bright scene.
 ----------------------------------------------------------------
 4. Live YOLO on the Pi camera
 ----------------------------------------------------------------
-Point at a cardboard box, then at empty floor.
+On the Pi desktop / AnyDesk, general 80-class COCO (person, car, bottle, …)
+with a popup window. First run downloads yolov8n.pt. q or Esc to quit.
+
+  python3 live_detect.py --imgsz 320 --conf 0.35
+
+Box-only trained weights (no popup, terminal bench):
 
   python3 bench_camera.py --imgsz 320 --conf 0.35
 

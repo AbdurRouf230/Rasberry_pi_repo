@@ -62,16 +62,22 @@ def resolve_weights() -> Path:
     )
 
 
-def get_model():
+def get_model(weights: Optional[str] = None):
     global _model, _model_path
     if _model is not None:
         return _model
     from ultralytics import YOLO
 
-    path = resolve_weights()
-    _model = YOLO(str(path), task="detect")
-    _model_path = str(path)
-    print(f"YOLO loaded: {path}")
+    raw = (weights or os.environ.get("BOX_YOLO_WEIGHTS") or "").strip()
+    if raw in {"yolov8n.pt", "yolov8s.pt", "yolo11n.pt", "yolo11s.pt"}:
+        source = raw
+    elif raw:
+        source = str(Path(raw))
+    else:
+        source = str(resolve_weights())
+    _model = YOLO(source, task="detect")
+    _model_path = source
+    print(f"YOLO loaded: {source}")
     print(f"classes: {getattr(_model, 'names', {})}")
     return _model
 
@@ -84,8 +90,9 @@ def detect_rgb(
     rgb: np.ndarray,
     imgsz: Optional[int] = None,
     conf: Optional[float] = None,
+    all_classes: bool = False,
 ) -> tuple[list[dict[str, Any]], float]:
-    """Return (hits, infer_ms). hits are YOLO box-class only."""
+    """Return (hits, infer_ms). Default: box-class only. all_classes=True keeps every COCO label."""
     model = get_model()
     imgsz = default_imgsz() if imgsz is None else imgsz
     conf = default_conf() if conf is None else conf
@@ -106,15 +113,30 @@ def detect_rgb(
             else:
                 label = str(names[cls_id] if 0 <= cls_id < len(names) else cls_id)
             name = label.lower().strip()
-            if name not in TARGET_NAMES:
+            if not all_classes and name not in TARGET_NAMES:
                 continue
             hits.append({
                 "name": name,
+                "cls_id": cls_id,
                 "confidence": round(float(box.conf[0]), 3),
                 "bbox": [int(v) for v in box.xyxy[0].tolist()],
                 "source": "yolo",
             })
     return hits, infer_ms
+
+
+def _bgr_for_class(cls_id: int) -> tuple[int, int, int]:
+    palette = (
+        (0, 255, 0),
+        (0, 165, 255),
+        (255, 0, 0),
+        (255, 255, 0),
+        (255, 0, 255),
+        (0, 255, 255),
+        (80, 80, 255),
+        (0, 128, 255),
+    )
+    return palette[int(cls_id) % len(palette)]
 
 
 def draw_hits(rgb: np.ndarray, hits: list[dict[str, Any]]) -> np.ndarray:
@@ -123,14 +145,15 @@ def draw_hits(rgb: np.ndarray, hits: list[dict[str, Any]]) -> np.ndarray:
     bgr = cv2.cvtColor(np.ascontiguousarray(rgb), cv2.COLOR_RGB2BGR)
     for hit in hits:
         x1, y1, x2, y2 = hit["bbox"]
-        cv2.rectangle(bgr, (x1, y1), (x2, y2), (0, 255, 0), 2)
+        color = _bgr_for_class(int(hit.get("cls_id", 0)))
+        cv2.rectangle(bgr, (x1, y1), (x2, y2), color, 2)
         cv2.putText(
             bgr,
             f"{hit['name']} {hit['confidence']:.2f}",
             (x1, max(16, y1 - 8)),
             cv2.FONT_HERSHEY_SIMPLEX,
             0.5,
-            (0, 255, 0),
+            color,
             2,
             cv2.LINE_AA,
         )
