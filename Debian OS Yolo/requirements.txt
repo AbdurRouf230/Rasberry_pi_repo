@@ -1,6 +1,7 @@
+# Torch is installed by install_deps.sh from the CPU index.
+# Do not pip-install torch from PyPI on a Pi — it pulls CUDA and fills the SD card.
 ultralytics>=8.3.0
-opencv-python-headless>=4.8.0
 numpy>=1.24.0
 Pillow>=10.0.0
-# On Raspberry Pi OS / Ubuntu with CSI camera also install:
-#   sudo apt install -y python3-picamera2 python3-libcamera python3-opencv
+# opencv: use Debian python3-opencv (venv --system-site-packages).
+# CSI camera: sudo apt install python3-picamera2 python3-libcamera

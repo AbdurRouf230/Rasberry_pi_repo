@@ -24,11 +24,15 @@ On the Pi:
 ----------------------------------------------------------------
 2. Install packages (does not run YOLO)
 ----------------------------------------------------------------
-  cd ~/DebianOSYolo
+  cd ~/Rasberry_pi_repo/Debian\ OS\ Yolo
   sed -i 's/\r$//' install_deps.sh
   bash install_deps.sh
 
-  Takes several minutes (PyTorch via pip on Pi 4).
+  Takes several minutes. Uses CPU PyTorch only (a Pi has no NVIDIA GPU).
+  If you see "No space left on device", pip fetched CUDA torch by mistake:
+    rm -rf .venv ~/.cache/pip
+    sudo apt-get clean
+    bash install_deps.sh
 
 ----------------------------------------------------------------
 3. Camera check (no YOLO)

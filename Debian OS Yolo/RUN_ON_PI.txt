@@ -1,9 +1,19 @@
-On the Pi (Debian 13), after copying this folder:
+On the Pi (Debian 13), after cloning:
 
-  cd ~/DebianOSYolo
+  cd ~/Rasberry_pi_repo/Debian\ OS\ Yolo
   sed -i 's/\r$//' install_deps.sh
   bash install_deps.sh
   source .venv/bin/activate
   python3 check_camera.py
   python3 bench_camera.py --imgsz 320 --conf 0.35
   python3 bench_images.py --imgsz 320 --conf 0.35
+
+If install failed with "No space left on device":
+  pip pulled CUDA PyTorch (Pi has no NVIDIA GPU). Free space, then rerun:
+
+  cd ~/Rasberry_pi_repo/Debian\ OS\ Yolo
+  rm -rf .venv ~/.cache/pip
+  sudo apt-get clean
+  df -h
+  bash install_deps.sh
+
