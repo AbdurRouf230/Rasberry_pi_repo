@@ -56,6 +56,11 @@ with a popup window. First run downloads yolov8n.pt. q or Esc to quit.
 
   python3 live_detect.py --imgsz 320 --conf 0.35
 
+  Saves results/live_YYYYMMDD_HHMMSS/:
+    inference.csv   (frame, infer_ms, fps, names)
+    video.mp4
+    <classname>/*.jpg  (only frames where that class is seen)
+
 Box-only trained weights (no popup, terminal bench):
 
   python3 bench_camera.py --imgsz 320 --conf 0.35

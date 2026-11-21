@@ -14,6 +14,8 @@ Run on the Pi desktop / AnyDesk so a window can open:
   python3 live_detect.py --imgsz 320 --conf 0.35
 
 First run downloads yolov8n.pt. q or Esc closes the window.
+Writes results/live_YYYYMMDD_HHMMSS/inference.csv, video.mp4,
+and one JPEG folder per detected class (person/, car/, …).
 Box-only model instead:  python3 live_detect.py --weights weights/best.pt
 
 If install failed with "No space left on device":

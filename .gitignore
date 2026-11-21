@@ -7,6 +7,8 @@ results/**/*.jpg
 results/**/*.jpeg
 results/**/*.png
 results/**/*.csv
+results/**/*.mp4
+results/**/*.avi
 !results/.gitkeep
 *.tmp
 .DS_Store
