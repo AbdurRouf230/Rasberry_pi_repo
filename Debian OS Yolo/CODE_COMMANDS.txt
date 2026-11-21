@@ -1,0 +1,185 @@
+================================================================
+Debian OS Yolo — each file, what it does, how to run it
+Debian 13 (Trixie) Raspberry Pi. CSI camera + YOLO only.
+No ROS 2. No Gazebo. No Simulation folder.
+================================================================
+
+Always start in this folder, with the venv on:
+
+  cd ~/Rasberry_pi_repo/Debian\ OS\ Yolo
+  source .venv/bin/activate
+
+Run these on the Pi. install_deps.sh / live_detect.py / check_camera.py
+need the Pi. The rest can run on the Pi after deps are installed.
+
+Live window needs the Pi desktop / AnyDesk (a DISPLAY). SSH-only
+has no popup.
+
+q or Esc closes live_detect.py. Ctrl+C stops the benches.
+
+
+----------------------------------------------------------------
+0. One-time install (do this first, only on the Pi)
+----------------------------------------------------------------
+  File:    install_deps.sh
+  Does:    apt packages (python3, picamera2, libcamera, opencv) +
+           venv with CPU PyTorch 2.7.1, numpy, ultralytics.
+           Does not start the camera or YOLO.
+
+  sed -i 's/\r$//' install_deps.sh
+  chmod +x install_deps.sh
+  bash install_deps.sh
+
+  Do not run this again unless you want the venv deleted and rebuilt.
+  Do not pip install -r requirements.txt by itself (that pulls CUDA torch).
+
+  File:    requirements.txt
+  Does:    Package list used by install_deps.sh. Not a run command.
+
+
+----------------------------------------------------------------
+1. check_camera.py
+----------------------------------------------------------------
+  Does:    Opens CSI (picamera2) or USB camera. Grabs 8 frames.
+           No YOLO. Saves one still.
+
+  python3 check_camera.py
+
+  Output:  results/camera_check.jpg
+  Pass:    "camera ok" and a real photo.
+  Fail:    reseat CSI ribbon (blue tab toward USB on Pi 4).
+
+
+----------------------------------------------------------------
+2. live_detect.py          (main live viewer)
+----------------------------------------------------------------
+  Does:    General YOLOv8n, 80 COCO classes (person, car, bottle, …).
+           Opens a "YOLO live" window with boxes + labels.
+           Every frame: CSV row (infer_ms, fps, names).
+           Whole session: one video.
+           On a hit: JPEG into a folder named after that class.
+
+  python3 live_detect.py --imgsz 320 --conf 0.35
+
+  First run downloads yolov8n.pt (~6 MB) into this folder.
+  Keys:    q or Esc = quit
+
+  Output:  results/live_YYYYMMDD_HHMMSS/
+             inference.csv
+             video.mp4          (or video.avi if mp4 fails)
+             person/*.jpg
+             car/*.jpg
+             …                  (only classes that appeared)
+
+  Same window, box-only trained weights instead of COCO:
+
+  python3 live_detect.py --weights weights/best.pt --imgsz 320 --conf 0.35
+
+
+----------------------------------------------------------------
+3. bench_camera.py
+----------------------------------------------------------------
+  Does:    Live CSI YOLO but terminal-only (no popup).
+           Uses weights/best.pt and keeps only "box"-like classes.
+           Prints HIT/miss + ms + FPS. Writes CSV and hit JPEGs.
+
+  python3 bench_camera.py --imgsz 320 --conf 0.35
+
+  Stop:    Ctrl+C
+  Output:  results/bench_camera_YYYYMMDD_HHMMSS.csv
+           results/hits/hit_*.jpg
+  Speed:   Pi 4B about 1–4 FPS at imgsz 320.
+
+
+----------------------------------------------------------------
+4. bench_images.py
+----------------------------------------------------------------
+  Does:    Runs box YOLO on samples/ photos (no camera).
+           Files named hit_* should detect a box; miss_* should not.
+           Prints TP/FP/FN/TN, precision, recall, mean ms, FPS.
+
+  python3 bench_images.py --imgsz 320 --conf 0.35
+
+  Output:  results/bench_images_YYYYMMDD_HHMMSS.csv
+           results/image_hits/   (boxed copies of hits)
+
+
+----------------------------------------------------------------
+5. export_ncnn.py
+----------------------------------------------------------------
+  Does:    Converts weights/best.pt to NCNN. Often faster on Pi CPU
+           than PyTorch. Does not run the camera.
+
+  python3 export_ncnn.py
+
+  Then use the NCNN model:
+
+  export BOX_YOLO_WEIGHTS=~/Rasberry_pi_repo/Debian\ OS\ Yolo/weights/best_ncnn_model
+  python3 bench_camera.py --imgsz 320 --conf 0.35
+  python3 live_detect.py --weights "$BOX_YOLO_WEIGHTS" --imgsz 320 --conf 0.35
+
+
+----------------------------------------------------------------
+6. download_online_samples.py
+----------------------------------------------------------------
+  Does:    Downloads ~100 Wikimedia photos into samples/
+           (hit_* boxes, miss_* empty). Not needed if samples/ already
+           has photos. Needs internet.
+
+  python3 download_online_samples.py
+
+
+----------------------------------------------------------------
+7. Libraries (imported by the scripts above — you do not run these)
+----------------------------------------------------------------
+  camera_csi.py
+    Open/read/close CSI picamera2, USB OpenCV fallback.
+    Used by: check_camera.py, live_detect.py, bench_camera.py
+
+  box_model.py
+    Load YOLO, time one predict, draw boxes.
+    Default filter = box classes only.
+    live_detect.py calls it with all_classes=True (all 80 COCO names).
+    Used by: live_detect.py, bench_camera.py, bench_images.py, export_ncnn.py
+
+
+----------------------------------------------------------------
+8. Folders and other files
+----------------------------------------------------------------
+  weights/best.pt     trained cardboard-box model (1 class: box)
+  yolov8n.pt          general 80-class COCO (auto-downloaded by live_detect)
+  samples/            Wikimedia hit_* and miss_* photos
+  samples/SOURCES.txt list of photo URLs
+  results/            all CSV, JPEG, MP4 output (gitignored)
+
+  STEPS_DEBIAN_PI.txt   longer Debian 13 walkthrough
+  RUN_ON_PI.txt         short command list
+  STEPS_RASPBERRY_PI.txt  pointer: use STEPS_DEBIAN_PI.txt
+  CODE_COMMANDS.txt     this file
+
+
+----------------------------------------------------------------
+9. Typical order on this Pi
+----------------------------------------------------------------
+  cd ~/Rasberry_pi_repo/Debian\ OS\ Yolo
+  source .venv/bin/activate
+
+  python3 check_camera.py
+  python3 live_detect.py --imgsz 320 --conf 0.35
+  python3 bench_camera.py --imgsz 320 --conf 0.35
+  python3 bench_images.py --imgsz 320 --conf 0.35
+
+  Optional faster box model:
+  python3 export_ncnn.py
+  export BOX_YOLO_WEIGHTS=~/Rasberry_pi_repo/Debian\ OS\ Yolo/weights/best_ncnn_model
+  python3 bench_camera.py --imgsz 320 --conf 0.35
+
+
+----------------------------------------------------------------
+10. FPS (Pi 4B, imgsz 320, yolov8n PyTorch CPU)
+----------------------------------------------------------------
+  Expect about 1–4 FPS. The camera is faster than YOLO.
+  Smaller --imgsz 256 or 192 = faster, less accurate.
+  NCNN export (section 5) is the real speedup for best.pt.
+  Saving JPEG + MP4 in live_detect.py makes FPS a bit lower, not higher.
+================================================================
