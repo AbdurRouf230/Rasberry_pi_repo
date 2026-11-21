@@ -1,0 +1,83 @@
+================================================================
+Debian OS Yolo — Raspberry Pi OS Debian 13 (trixie)
+================================================================
+This folder is Only yolo, set up for YOUR current Pi:
+  shayor@rasberry   Debian GNU/Linux 13 (trixie)
+
+CSI camera + trained box YOLO. No ROS 2. No Ubuntu 22.04. No Gazebo.
+
+Copy this folder onto the Pi (from Windows, same WiFi), then in the
+Pi terminal (AnyDesk is fine):
+
+----------------------------------------------------------------
+1. Copy the folder
+----------------------------------------------------------------
+On the Windows PC (PowerShell), adjust the Pi IP:
+
+  scp -r "E:\Multi Drone\Rasberry-Repo\Debian OS Yolo" shayor@<PI_IP>:~/DebianOSYolo
+
+On the Pi:
+
+  ls ~/DebianOSYolo/weights/best.pt
+  # that file MUST exist
+
+----------------------------------------------------------------
+2. Install packages (does not run YOLO)
+----------------------------------------------------------------
+  cd ~/DebianOSYolo
+  sed -i 's/\r$//' install_deps.sh
+  bash install_deps.sh
+
+  Takes several minutes (PyTorch via pip on Pi 4).
+
+----------------------------------------------------------------
+3. Camera check (no YOLO)
+----------------------------------------------------------------
+Point the ribbon camera at a bright scene.
+
+  cd ~/DebianOSYolo
+  source .venv/bin/activate
+  python3 check_camera.py
+
+  Pass: results/camera_check.jpg
+  Also: rpicam-hello -t 2000
+
+  Fail: reseat CSI cable (blue side toward USB on Pi 4).
+
+----------------------------------------------------------------
+4. Live YOLO on the Pi camera
+----------------------------------------------------------------
+Point at a cardboard box, then at empty floor.
+
+  python3 bench_camera.py --imgsz 320 --conf 0.35
+
+  Pi 4B is slow: about 1–4 FPS. Ctrl+C to stop.
+  CSV:  results/bench_camera_*.csv
+  Hits: results/hits/hit_*.jpg
+
+----------------------------------------------------------------
+5. ~100 online photos (no sim frames)
+----------------------------------------------------------------
+  python3 bench_images.py --imgsz 320 --conf 0.35
+
+  Prints TP/FP/FN/TN, mean ms, FPS.
+  This weights was trained on a Gazebo box; many real photos will miss.
+
+----------------------------------------------------------------
+6. Optional faster model
+----------------------------------------------------------------
+  python3 export_ncnn.py
+  export BOX_YOLO_WEIGHTS=~/DebianOSYolo/weights/best_ncnn_model
+  python3 bench_camera.py --imgsz 320
+
+----------------------------------------------------------------
+Done when
+----------------------------------------------------------------
+- check_camera.py saved a photo
+- YOLO loaded best.pt class box
+- cardboard in view -> HIT
+- empty view -> miss
+- you have mean inference ms on this Pi
+
+Do not install ROS 2 here. Humble needs Ubuntu 22.04 (Simulation folder).
+================================================================

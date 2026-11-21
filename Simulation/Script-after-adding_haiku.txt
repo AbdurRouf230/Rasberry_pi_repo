@@ -1,0 +1,12 @@
+cd "/mnt/e/Multi Drone/Merge folder/intelleswarm-ai/genai_framework/px4_gazebo_sim"
+source /opt/ros/humble/setup.bash
+source ~/ros2_ws/install/setup.bash
+export DISPLAY=:0
+export WAYLAND_DISPLAY=wayland-0
+export XDG_RUNTIME_DIR=/mnt/wslg/runtime-dir
+export PULSE_SERVER=unix:/mnt/wslg/PulseServer
+
+python3 run_pollination_simulation.py --px4-dir ~/PX4-Main/PX4-Autopilot --area pent_house --num-drones 6
+
+Area var:
+tri_right, tri_isosceles, tri_obtuse, quad_rectangle, quad_trapezoid, quad_irregular, pent_convex, pent_house, pent_notch, hex_regular, hex_L_shape, hex_field

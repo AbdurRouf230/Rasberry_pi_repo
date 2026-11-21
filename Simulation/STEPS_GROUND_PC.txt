@@ -1,0 +1,44 @@
+================================================================
+Simulation — ground PC steps (Ethernet)
+================================================================
+The Raspberry Pi file STEPS_RASPBERRY_PI.txt is the full procedure.
+This file is only the PC side, in order.
+
+1. Ethernet to the same WiFi router as the Pi.
+   Example static IP: 192.168.10.10  (must match env_discovery.sh)
+
+2. ping 192.168.10.20   (the Pi)
+
+3. ROS 2 Humble (already used for the Gazebo sim).
+
+4. Terminal 1 — discovery server (leave open):
+
+   source /opt/ros/humble/setup.bash
+   export RMW_IMPLEMENTATION=rmw_fastrtps_cpp
+   export ROS_DOMAIN_ID=0
+   export ROS_LOCALHOST_ONLY=0
+   fastdds discovery --server-id 0 -l 192.168.10.10 -p 11811
+
+5. Terminal 2 — coordinator stub (no Gazebo, first test):
+
+   source /opt/ros/humble/setup.bash
+   export RMW_IMPLEMENTATION=rmw_fastrtps_cpp
+   export ROS_DOMAIN_ID=0
+   export ROS_LOCALHOST_ONLY=0
+   export ROS_DISCOVERY_SERVER=192.168.10.10:11811
+   cd "/mnt/e/Multi Drone/Rasberry-Repo/Simulation"
+   python3 companion_pi/pc_coordinator_stub.py
+
+   You should see swarm_state from the Pi. box_hit here is only the
+   Pi radio test (--fake-hit), not a camera.
+
+6. Full sim (YOLO = Gazebo drone down-cameras, not the Pi CSI):
+
+   python3 run_pollination_simulation.py --px4-dir ~/PX4-Main/PX4-Autopilot --area pent_house --num-drones 6
+
+   When a SITL camera sees the box, this node publishes
+   /mission/command and the Pi companion prints RTB.
+
+Gazebo stays on the PC. Never on the Pi 4B.
+The Raspberry Pi camera is not used in Simulation.
+================================================================

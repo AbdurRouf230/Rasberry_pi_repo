@@ -1,0 +1,198 @@
+================================================================
+Simulation — Raspberry Pi 4B steps (ROS 2 <-> ground PC)
+================================================================
+This folder is the Merge px4_gazebo_sim stack PLUS a Pi companion.
+
+YOLO IN THIS FOLDER USES THE GAZEBO DRONE DOWN-CAMERA ON THE PC.
+The Raspberry Pi CSI camera is NOT used here.
+Pi camera + YOLO bench is only:  Rasberry-Repo/Only yolo
+
+- Gazebo + 6 PX4 SITL + drone cameras + YOLO  = GROUND PC (Ethernet)
+- ROS 2 companion (notify / hear RTB)         = RASPBERRY PI 4B (WiFi)
+
+The Pi never runs Gazebo and never opens its ribbon camera in this test.
+
+Network we assume
+  Router / AP     192.168.10.1
+  Ground PC (eth) 192.168.10.10   << discovery server lives here
+  Raspberry Pi    192.168.10.20   WiFi
+  ROS_DOMAIN_ID   0
+
+Change the IPs if yours differ, everywhere below.
+
+Copy this folder onto the Pi:
+
+  scp -r "E:\Multi Drone\Rasberry-Repo\Simulation" pi@192.168.10.20:~/simulation
+
+You do not need Only yolo on the Pi for Simulation.
+
+================================================================
+1. Static IP on the Pi (WiFi)
+================================================================
+On the Pi:
+
+  hostname -I
+
+  # Ubuntu 22.04 netplan: set wlan0 to 192.168.10.20/24, gateway = router
+  sudo netplan apply
+
+  ping -c 3 192.168.10.10
+  # MUST reply. If this fails, stop. ROS 2 will not work.
+
+================================================================
+2. ROS 2 Humble on the Pi
+================================================================
+Ubuntu 22.04 64-bit only (do not use 32-bit).
+
+  From the repo root (install only, does not run anything):
+
+    sed -i 's/\r$//' install_deps.sh
+    bash install_deps.sh
+    # ROS 2 only: SKIP_YOLO=1 bash install_deps.sh
+
+  Or by hand:
+
+  sudo apt update
+  sudo apt install -y software-properties-common curl gnupg lsb-release
+  sudo curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key \
+    -o /usr/share/keyrings/ros-archive-keyring.gpg
+  echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(. /etc/os-release && echo $UBUNTU_CODENAME) main" | sudo tee /etc/apt/sources.list.d/ros2.list
+  sudo apt update
+  sudo apt install -y ros-humble-ros-base python3-colcon-common-extensions \
+    ros-humble-rmw-fastrtps-cpp ros-humble-std-msgs
+
+  echo "source /opt/ros/humble/setup.bash" >> ~/.bashrc
+  source /opt/ros/humble/setup.bash
+  ros2 --help | head
+
+================================================================
+3. Discovery (same WiFi, no multicast)
+================================================================
+Fast DDS multicast is unreliable on WiFi. The GROUND PC runs a
+discovery server. The Pi is only a client.
+
+On the Pi, every new terminal:
+
+  source /opt/ros/humble/setup.bash
+  source ~/simulation/companion_pi/env_discovery.sh
+  # edit that file first so ROS_DISCOVERY_SERVER is the PC Ethernet IP
+
+  echo $ROS_DISCOVERY_SERVER
+  # must print 192.168.10.10:11811  (or YOUR pc ip)
+
+================================================================
+4. GROUND PC must already be running (do this on the PC)
+----------------------------------------------------------------
+PC Ethernet IP must be 192.168.10.10 (or match env_discovery.sh).
+
+WSL or Ubuntu on the PC:
+
+  source /opt/ros/humble/setup.bash
+  export RMW_IMPLEMENTATION=rmw_fastrtps_cpp
+  export ROS_DOMAIN_ID=0
+  export ROS_LOCALHOST_ONLY=0
+  fastdds discovery --server-id 0 -l 192.168.10.10 -p 11811
+
+Leave that window open. New PC window:
+
+  source /opt/ros/humble/setup.bash
+  export RMW_IMPLEMENTATION=rmw_fastrtps_cpp
+  export ROS_DOMAIN_ID=0
+  export ROS_DISCOVERY_SERVER=192.168.10.10:11811
+  export ROS_LOCALHOST_ONLY=0
+  cd "/mnt/e/Multi Drone/Rasberry-Repo/Simulation"
+  python3 companion_pi/pc_coordinator_stub.py
+
+The stub needs no Gazebo. It proves WiFi ROS 2 only.
+
+================================================================
+5. ROS 2 link test on the Pi (no camera)
+================================================================
+  source /opt/ros/humble/setup.bash
+  source ~/simulation/companion_pi/env_discovery.sh
+  cd ~/simulation
+  python3 companion_pi/check_link.py
+
+Pass:
+  Pi prints "sent swarm_state n=..."
+  PC stub prints "Pi swarm_state: ..."
+If the PC is silent: ping, then ROS_DISCOVERY_SERVER, then firewall
+(allow UDP 11811 and DDS ports, or disable firewall for the test).
+
+================================================================
+6. Fake box_hit — radio only, not a camera
+================================================================
+Use this only to prove the Pi can hear RTB without starting Gazebo.
+
+  source /opt/ros/humble/setup.bash
+  source ~/simulation/companion_pi/env_discovery.sh
+  cd ~/simulation
+  python3 companion_pi/pi_companion.py --fake-hit --drone-id drone0 --namespace px4_0
+
+Wait 5 seconds.
+
+Pass:
+  Pi:  "notified ground PC: box_hit ..."
+  PC:  "Pi box_hit" then "published /mission/command"
+  Pi:  "RTB received from ground PC"
+
+================================================================
+7. Full Gazebo — drone cameras on the PC, Pi only listens
+================================================================
+YOLO runs on each SITL drone's Gazebo down-facing camera (x500_mono_cam_down).
+The Pi ribbon camera is unused.
+
+On the PC, same discovery exports as step 4, then:
+
+  cd "/mnt/e/Multi Drone/Rasberry-Repo/Simulation"
+  source /opt/ros/humble/setup.bash
+  source ~/ros2_ws/install/setup.bash
+  export DISPLAY=:0 WAYLAND_DISPLAY=wayland-0
+  export XDG_RUNTIME_DIR=/mnt/wslg/runtime-dir
+  export ROS_DISCOVERY_SERVER=192.168.10.10:11811
+  export ROS_LOCALHOST_ONLY=0
+  python3 run_pollination_simulation.py --px4-dir ~/PX4-Main/PX4-Autopilot --area pent_house --num-drones 6
+
+On the Pi (no --fake-hit, no camera):
+
+  source /opt/ros/humble/setup.bash
+  source ~/simulation/companion_pi/env_discovery.sh
+  cd ~/simulation
+  python3 companion_pi/pi_companion.py --drone-id drone0 --namespace px4_0
+
+When a Gazebo drone camera sees the box:
+  PC coordinator logs YOLO hit and publishes /mission/command return_to_base
+  SITL drones RTB
+  Pi prints "RTB received from ground PC"
+
+Do NOT arm a real Pixhawk in this test.
+
+================================================================
+8. What “working perfectly” means
+================================================================
+- ping PC <-> Pi works
+- PC sees /px4_0/swarm_state from the Pi
+- Gazebo down-cam YOLO finds the box (captures under droneN / droneN_captured)
+- PC sends return_to_base
+- Pi prints RTB received
+- Raspberry CSI camera was not used
+
+Pi camera checks belong in Only yolo, not here.
+
+================================================================
+GROUND PC one-liners (copy)
+================================================================
+# terminal 1
+source /opt/ros/humble/setup.bash
+export RMW_IMPLEMENTATION=rmw_fastrtps_cpp ROS_DOMAIN_ID=0 ROS_LOCALHOST_ONLY=0
+fastdds discovery --server-id 0 -l 192.168.10.10 -p 11811
+
+# terminal 2 — WiFi test without Gazebo
+source /opt/ros/humble/setup.bash
+export RMW_IMPLEMENTATION=rmw_fastrtps_cpp ROS_DOMAIN_ID=0 ROS_LOCALHOST_ONLY=0
+export ROS_DISCOVERY_SERVER=192.168.10.10:11811
+python3 companion_pi/pc_coordinator_stub.py
+
+# terminal 2 — real sim (drone cameras)
+# same exports, then run_pollination_simulation.py (see step 7)
+================================================================

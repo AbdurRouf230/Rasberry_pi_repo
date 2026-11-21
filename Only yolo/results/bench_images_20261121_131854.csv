@@ -1,0 +1,15 @@
+file,expected,pred_hit,infer_ms,n_boxes,max_conf
+hit_real_box_open.jpg,hit,0,24.86,0,0.000
+hit_real_hollinger.jpg,hit,0,18.23,0,0.000
+hit_real_moving_box.jpg,hit,0,100.13,0,0.000
+hit_sim_gazebo_01.png,hit,0,17.70,0,0.000
+hit_sim_gazebo_02.png,hit,0,16.59,0,0.000
+hit_sim_gazebo_03.png,hit,0,16.17,0,0.000
+hit_synth_field_01.jpg,hit,0,16.26,0,0.000
+hit_synth_field_02.jpg,hit,1,35.99,1,0.605
+hit_synth_purple_01.jpg,hit,1,19.26,1,0.540
+miss_real_grass.jpg,miss,0,121.03,0,0.000
+miss_sim_gazebo_01.png,miss,0,21.04,0,0.000
+miss_sim_gazebo_02.png,miss,0,22.91,0,0.000
+miss_synth_field_01.jpg,miss,0,20.09,0,0.000
+miss_synth_purple_01.jpg,miss,0,16.79,0,0.000

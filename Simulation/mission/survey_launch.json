@@ -1,0 +1,283 @@
+{
+  "world": "agricultural_farm.world",
+  "area": "pent_house",
+  "corners": 5,
+  "assignment_source": "llm",
+  "assignment_plot": "/mnt/e/Multi Drone/Merge folder/intelleswarm-ai/genai_framework/px4_gazebo_sim/area_assignment_plots/20261120_183958_pent_house.png",
+  "assignment_report": "/mnt/e/Multi Drone/Merge folder/intelleswarm-ai/genai_framework/px4_gazebo_sim/area_assignment_plots/20261120_183958_pent_house.json",
+  "num_drones": 6,
+  "spawns": [
+    {
+      "x": -162.0,
+      "y": -45.0,
+      "z": 0.5,
+      "yaw": 0.0
+    },
+    {
+      "x": -150.0,
+      "y": -45.0,
+      "z": 0.5,
+      "yaw": 0.0
+    },
+    {
+      "x": -138.0,
+      "y": -45.0,
+      "z": 0.5,
+      "yaw": 0.0
+    },
+    {
+      "x": -162.0,
+      "y": -59.0,
+      "z": 0.5,
+      "yaw": 0.0
+    },
+    {
+      "x": -150.0,
+      "y": -59.0,
+      "z": 0.5,
+      "yaw": 0.0
+    },
+    {
+      "x": -138.0,
+      "y": -59.0,
+      "z": 0.5,
+      "yaw": 0.0
+    }
+  ],
+  "patches": [
+    {
+      "id": 1,
+      "drone_id": "drone1",
+      "area_m2": 3079,
+      "centroid_m": [
+        0.0,
+        -60.3
+      ],
+      "waypoints_m": [
+        [
+          -82.0,
+          -65.007
+        ],
+        [
+          82.0,
+          -65.007
+        ],
+        [
+          82.0,
+          -55.62
+        ],
+        [
+          -82.0,
+          -55.62
+        ]
+      ],
+      "first_row": 1,
+      "last_row": 2
+    },
+    {
+      "id": 2,
+      "drone_id": "drone2",
+      "area_m2": 3079,
+      "centroid_m": [
+        0.0,
+        -41.55
+      ],
+      "waypoints_m": [
+        [
+          -82.0,
+          -46.233
+        ],
+        [
+          82.0,
+          -46.233
+        ],
+        [
+          82.0,
+          -36.847
+        ],
+        [
+          -82.0,
+          -36.847
+        ]
+      ],
+      "first_row": 3,
+      "last_row": 4
+    },
+    {
+      "id": 3,
+      "drone_id": "drone3",
+      "area_m2": 3079,
+      "centroid_m": [
+        0.0,
+        -22.8
+      ],
+      "waypoints_m": [
+        [
+          -82.0,
+          -27.46
+        ],
+        [
+          82.0,
+          -27.46
+        ],
+        [
+          82.0,
+          -18.073
+        ],
+        [
+          -82.0,
+          -18.073
+        ]
+      ],
+      "first_row": 5,
+      "last_row": 6
+    },
+    {
+      "id": 4,
+      "drone_id": "drone4",
+      "area_m2": 3079,
+      "centroid_m": [
+        0.0,
+        -4.0
+      ],
+      "waypoints_m": [
+        [
+          -82.0,
+          -8.687
+        ],
+        [
+          82.0,
+          -8.687
+        ],
+        [
+          82.0,
+          0.7
+        ],
+        [
+          -82.0,
+          0.7
+        ]
+      ],
+      "first_row": 7,
+      "last_row": 8
+    },
+    {
+      "id": 5,
+      "drone_id": "drone5",
+      "area_m2": 3056,
+      "centroid_m": [
+        0.0,
+        16.7
+      ],
+      "waypoints_m": [
+        [
+          -82.0,
+          10.087
+        ],
+        [
+          82.0,
+          10.087
+        ],
+        [
+          82.0,
+          19.473
+        ],
+        [
+          -82.0,
+          19.473
+        ]
+      ],
+      "first_row": 9,
+      "last_row": 10
+    },
+    {
+      "id": 6,
+      "drone_id": "drone6",
+      "area_m2": 3455,
+      "centroid_m": [
+        0.0,
+        39.367
+      ],
+      "waypoints_m": [
+        [
+          -68.067,
+          28.86
+        ],
+        [
+          68.067,
+          28.86
+        ],
+        [
+          52.422,
+          38.247
+        ],
+        [
+          -52.422,
+          38.247
+        ],
+        [
+          -36.778,
+          47.633
+        ],
+        [
+          36.778,
+          47.633
+        ],
+        [
+          21.133,
+          57.02
+        ],
+        [
+          -21.133,
+          57.02
+        ],
+        [
+          -6.656,
+          65.707
+        ],
+        [
+          6.656,
+          65.707
+        ]
+      ],
+      "first_row": 11,
+      "last_row": 15
+    }
+  ],
+  "altitude_m": 9.0,
+  "line_spacing_m": 9.4,
+  "area_coords": [
+    [
+      -82.0,
+      -69.7
+    ],
+    [
+      82.0,
+      -69.7
+    ],
+    [
+      82.0,
+      20.5
+    ],
+    [
+      0.0,
+      69.7
+    ],
+    [
+      -82.0,
+      20.5
+    ]
+  ],
+  "target_box": {
+    "x": -23.55,
+    "y": 33.97,
+    "z": 0.0,
+    "size_m": 1.2,
+    "length_m": 1.2,
+    "width_m": 0.9,
+    "height_m": 0.6
+  },
+  "warnings": [
+    "Camera GSD altitude 58.3 m unused; flying coverage altitude 9.0 m over assigned patches."
+  ]
+}

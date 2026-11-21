@@ -1,0 +1,1430 @@
+#!/usr/bin/env python3
+"""
+--------------------------------------------------------------------------
+ Copyright (c) 2026, IntelleSwarm Corporation. All Rights Reserved.
+ This software is proprietary and confidential. Unauthorized copying or
+ dissemination is strictly prohibited.
+--------------------------------------------------------------------------
+ros2_node_intelleswarm_pollination.py
+Author: Zahid Rahman
+
+Enhanced ROS 2 node for IntelleSwarm Assistive Pollination missions:
+- Integrates with PX4 Gazebo simulation
+- Coordinates multi-drone pollination swarms using MARL algorithms
+- Implements flower detection and coverage optimization
+- Manages pollination mission planning and execution
+- Connects with assistive_pollination module for agricultural AI
+
+Compatible with agricultural_farm.world and px4_multi_drone.sh
+"""
+
+import os
+import sys
+from pathlib import Path
+
+# Must run before rclpy / px4_msgs / Gazebo protobufs are imported.
+_HERE = Path(__file__).resolve().parent
+if str(_HERE) not in sys.path:
+    sys.path.insert(0, str(_HERE))
+from gz_compat import apply_protobuf_compat  # noqa: E402
+apply_protobuf_compat()
+
+import json
+import math
+import threading
+import yaml
+import time
+from typing import Dict, Any, List, Tuple, Optional
+from dataclasses import dataclass
+
+import numpy as np
+
+import rclpy
+from rclpy.node import Node
+from rclpy.executors import ExternalShutdownException
+from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
+
+from geometry_msgs.msg import Twist
+from nav_msgs.msg import Odometry
+from sensor_msgs.msg import Image
+from std_msgs.msg import String, Float32MultiArray
+
+_REPO_ROOT = str(Path(__file__).resolve().parents[2])
+if _REPO_ROOT not in sys.path:
+    sys.path.insert(0, _REPO_ROOT)
+
+_MULTI_SCRIPT = Path(__file__).resolve().parent / "multi_drone_script"
+_CONTROLLER_CANDIDATES = [
+    _MULTI_SCRIPT,
+    Path(os.environ.get("DRONE_CONTROLLER_DIR", "")),
+    Path.home() / "ros2_ws" / "src" / "px4_python" / "MultiDrone",
+    Path("/home/rouf/ros2_ws/src/px4_python/MultiDrone"),
+    Path("/mnt/e/Multi Drone project/Main setup/main_used_code_in_script"),
+    Path(__file__).resolve().parent.parent.parent.parent / "main_used_code_in_script",
+]
+_CONTROLLER_CANDIDATES = [p for p in _CONTROLLER_CANDIDATES if str(p).strip() not in ("", ".")]
+for _p in (_MULTI_SCRIPT, *_CONTROLLER_CANDIDATES):
+    if _p.is_dir() and str(_p) not in sys.path:
+        sys.path.insert(0, str(_p))
+
+try:
+    from genai_framework.sdk import DroneBrain, EnvReading, GeoFence, SafetyManager, Pose
+except ImportError as e:
+    print(f"Warning: Could not import IntelleSwarm SDK: {e}")
+    DroneBrain = EnvReading = GeoFence = SafetyManager = Pose = None
+
+try:
+    from flower_prediction_json import reset_prediction_log
+except ImportError:
+    reset_prediction_log = None
+
+try:
+    import box_alert
+    from box_detector import (
+        captured_dir_name,
+        detect_image,
+        detections_are_target,
+        get_yolo,
+        mark_finder_capture_dir,
+        save_annotated_rgb,
+        yolo_status,
+    )
+except ImportError as e:
+    print(f"Warning: box detector not available: {e}")
+    box_alert = None
+    detect_image = None
+    detections_are_target = None
+    get_yolo = None
+    yolo_status = None
+    captured_dir_name = None
+    mark_finder_capture_dir = None
+    save_annotated_rgb = None
+
+try:
+    import swarm_net
+except ImportError:
+    swarm_net = None
+
+FlowerDetector = None
+get_detector = None
+detect_rgb = None
+
+# Prebuilt multi_drone_script stack (not reimplemented here)
+from collision_avoidance import FleetRegistry  # noqa: E402
+from drone_controller import DroneController  # noqa: E402
+from mission_logic import FleetDrone, run_grid_mission_fleet, land_and_wait  # noqa: E402
+from multi_drone_config import FLEET_STATE_PATH  # noqa: E402
+from multi_mission_runner import mission_thread, survey_thread  # noqa: E402
+from ros_thread_spin import install_thread_safe_spin  # noqa: E402
+
+
+class CoverageOptimizer:
+    """Lightweight coverage helper used when the dedicated module is absent."""
+
+    def __init__(self, *args, **kwargs):
+        self.overlap_percentage = kwargs.get("overlap_percentage", 20)
+
+
+class SwarmCoordinator:
+    """In-process swarm coordinator matching the node constructor."""
+
+    def __init__(self, num_drones: int = 6, communication_range: float = 1000.0, **kwargs):
+        self.num_drones = num_drones
+        self.communication_range = communication_range
+
+
+class PollinationMissionPlanner:
+    """In-process mission planner matching the node constructor."""
+
+    def __init__(self, *args, **kwargs):
+        self.max_drones = kwargs.get("max_drones", 6)
+
+# Configuration
+@dataclass
+class FlowerPatch:
+    """Represents a detected flower patch for pollination"""
+    id: int
+    center_x: float
+    center_y: float
+    radius: float
+    flower_type: str
+    priority: int
+    pollination_status: float  # 0.0 = not pollinated, 1.0 = fully pollinated
+
+@dataclass
+class DroneStatus:
+    """Enhanced drone status for pollination missions"""
+    drone_id: str
+    position: Tuple[float, float, float]  # x, y, z
+    battery: float
+    mission_state: str
+    current_target: Optional[FlowerPatch]
+    pollination_payload: float
+    flowers_pollinated: int
+
+class IntelleSwarmPollinationNode(Node):
+    """Enhanced ROS2 node for coordinated pollination missions"""
+
+    def __init__(self):
+        super().__init__("intelleswarm_pollination_controller")
+
+        self.get_logger().info("🌻 IntelleSwarm Pollination System starting...")
+
+        # Load configuration
+        self._load_configuration()
+        # One id for this spawn. Swarm state and flower predictions both use it.
+        self._swarm_run_id = time.strftime("%Y%m%d_%H%M%S")
+
+        # Initialize components
+        self._init_agricultural_ai()
+        self._init_mission_planning()
+        self._init_swarm_coordination()
+        self._init_safety_systems()
+
+        # ROS communication setup
+        self._setup_ros_communication()
+
+        # Prebuilt PX4 fleet (DroneController + FleetRegistry collision avoidance)
+        self.fleet_drones: Dict[str, FleetDrone] = {}
+        self.mission_threads: List[threading.Thread] = []
+        self._init_px4_fleet()
+
+        # Mission state
+        self.mission_active = False
+        self.mission_start_time = None
+        self.total_flowers_detected = 0
+        self.total_area_covered = 0.0
+
+        # Performance tracking
+        self.performance_metrics = {
+            'pollination_efficiency': 0.0,
+            'coverage_completeness': 0.0,
+            'energy_consumption': 0.0,
+            'coordination_quality': 0.0
+        }
+
+        self.get_logger().info("🚁 Pollination system initialized and ready!")
+
+        self._auto_start = os.environ.get("POLLINATION_AUTO_START", "1") != "0"
+        self._duration_sec = float(os.environ.get("POLLINATION_DURATION", "0") or 0)
+        self._start_box_detection_loop()
+
+    def _load_configuration(self):
+        """Load pollination mission configuration"""
+        config_path = Path(__file__).parent / "pollination_drone_config.yaml"
+
+        try:
+            with open(config_path, 'r') as f:
+                self.config = yaml.safe_load(f)
+        except FileNotFoundError:
+            self.get_logger().warn(f"Config file not found: {config_path}")
+            self.config = self._default_config()
+
+        # Extract key configurations
+        self.num_drones = max(1, int(os.environ.get("POLLINATION_NUM_DRONES", "6")))
+        self.drone_ids = [f"drone_{i}" for i in range(1, self.num_drones + 1)]
+        self.obs_dim = 32
+        self.msg_dim = 16
+        self.action_dim = 5  # vx, vy, vz, yaw_rate, pollination_rate
+
+        # Pollination parameters
+        self.pollination_config = self.config.get('pollination', {})
+        self.coverage_height = self.pollination_config.get('coverage_height', 3.0)
+        self.pollination_speed = self.pollination_config.get('pollination_speed', 2.0)
+
+        self.get_logger().info(f"🔧 Loaded config for {len(self.drone_ids)} drones")
+
+    def _default_config(self):
+        """Default configuration if file not found"""
+        return {
+            'pollination': {
+                'coverage_height': 3.0,
+                'pollination_speed': 2.0,
+                'overlap_percentage': 20,
+                'flower_priorities': {
+                    'sunflower': 100,
+                    'clover': 80,
+                    'wildflower': 40
+                }
+            },
+            'safety': {
+                'geo_fence': {
+                    'vertices': [[-200, -200], [200, -200], [200, 200], [-200, 200]]
+                }
+            }
+        }
+
+    def _init_agricultural_ai(self):
+        """Prepare YOLO target-box detection. Weights load on the camera thread."""
+        self.get_logger().info("📦 Initializing YOLO target-box detector...")
+        self.flower_detector = None
+        self._flower_detect_stop = threading.Event()
+        self._flower_detect_thread = None
+        self._last_detect_image_count: Dict[str, int] = {}
+        self._flower_detect_warned: Dict[str, bool] = {}
+        self.latest_flower_detections: Dict[str, list] = {}
+        self._box_miss_count: Dict[str, int] = {}
+        overlap = self.pollination_config.get("overlap_percentage", 20)
+        self.coverage_optimizer = CoverageOptimizer(overlap_percentage=overlap)
+        if box_alert is not None:
+            box_alert.reset()
+        if detect_image is None:
+            self.get_logger().warn("box_detector not imported — target-box YOLO is off")
+            return
+        self.get_logger().info(
+            "✅ YOLO attached to down-cam frames (trained box_yolo). "
+            "First box hit recalls the fleet to base camp."
+        )
+
+    def _init_mission_planning(self):
+        """Initialize mission planning system"""
+        self.get_logger().info("📋 Initializing Mission Planning...")
+
+        try:
+            self.mission_planner = PollinationMissionPlanner()
+        except Exception as e:
+            self.get_logger().warn(f"Mission planner not available: {e}")
+            self.mission_planner = None
+
+        # One patch per drone. The violet-field survey file replaces the old fixed table.
+        self.flower_patches = []
+        survey = self._survey_launch()
+        if survey is not None:
+            for patch in survey["patches"]:
+                cx, cy = patch["centroid_m"]
+                self.flower_patches.append(
+                    FlowerPatch(int(patch["id"]), float(cx), float(cy), 15.0, "clover", 80, 0.0)
+                )
+        else:
+            for patch_id, x, y, kind, priority in self._fixed_patch_table():
+                self.flower_patches.append(
+                    FlowerPatch(patch_id, x, y, 15.0, kind, priority, 0.0)
+                )
+
+        area_name = ""
+        if survey is not None:
+            area_name = f" area={survey.get('area')} corners={survey.get('corners')}"
+        self.get_logger().info(
+            "🌸 Fixed patches:"
+            + area_name
+            + " "
+            + ", ".join(
+                f"patch {p.id} ({p.center_x:.0f},{p.center_y:.0f})"
+                for p in self.flower_patches
+            )
+        )
+
+    def _init_swarm_coordination(self):
+        """Initialize swarm coordination with MARL"""
+        self.get_logger().info("🤖 Initializing Swarm Coordination...")
+
+        try:
+            self.swarm_coordinator = SwarmCoordinator(
+                num_drones=len(self.drone_ids),
+                communication_range=1000.0
+            )
+        except Exception as e:
+            self.get_logger().warn(f"Swarm coordinator not available: {e}")
+            self.swarm_coordinator = None
+
+        # Brains are loaded lazily — constructing 6 models here delays PX4 takeoff
+        self.drone_brains = {}
+        self.drone_status = {}
+
+        for i, drone_id in enumerate(self.drone_ids):
+            patch = self.flower_patches[i] if i < len(self.flower_patches) else None
+            self.drone_status[drone_id] = DroneStatus(
+                drone_id=drone_id,
+                position=(0.0, 0.0, 0.0),
+                battery=100.0,
+                mission_state="ready",
+                current_target=patch,
+                pollination_payload=100.0,
+                flowers_pollinated=0
+            )
+
+    def _init_safety_systems(self):
+        """Initialize safety and geo-fencing systems"""
+        self.get_logger().info("🛡️ Initializing Safety Systems...")
+
+        fence_vertices = self.config['safety']['geo_fence']['vertices']
+        self.farm_fence = None
+        self.safety_manager = None
+
+        if GeoFence is None:
+            self.get_logger().warn("GeoFence not available, safety fence disabled")
+            return
+
+        try:
+            self.farm_fence = GeoFence(vertices=fence_vertices)
+            if SafetyManager is not None:
+                self.safety_manager = SafetyManager(fences=[self.farm_fence])
+        except Exception as e:
+            self.get_logger().warn(f"Safety manager not available: {e}")
+            self.safety_manager = None
+
+    def _setup_ros_communication(self):
+        """Setup ROS2 publishers and subscribers"""
+        self.get_logger().info("📡 Setting up ROS2 Communication...")
+
+        # QoS profiles
+        sensor_qos = QoSProfile(
+            reliability=ReliabilityPolicy.BEST_EFFORT,
+            history=HistoryPolicy.KEEP_LAST,
+            depth=10
+        )
+
+        control_qos = QoSProfile(
+            reliability=ReliabilityPolicy.RELIABLE,
+            history=HistoryPolicy.KEEP_LAST,
+            depth=10
+        )
+
+        # Per-drone communication
+        self.state_subscribers = {}
+        self.image_subscribers = {}
+        self.cmd_publishers = {}
+        self.mission_publishers = {}
+
+        for drone_id in self.drone_ids:
+            # State subscriber (from PX4)
+            self.state_subscribers[drone_id] = self.create_subscription(
+                Odometry,
+                f"/{drone_id}/fmu/out/vehicle_odometry",
+                lambda msg, did=drone_id: self._state_callback(did, msg),
+                sensor_qos
+            )
+
+            # Camera/image subscriber for flower detection
+            self.image_subscribers[drone_id] = self.create_subscription(
+                Image,
+                f"/{drone_id}/camera/image_raw",
+                lambda msg, did=drone_id: self._image_callback(did, msg),
+                sensor_qos
+            )
+
+            # Command publisher (to PX4)
+            self.cmd_publishers[drone_id] = self.create_publisher(
+                Twist,
+                f"/{drone_id}/fmu/in/setpoint_velocity/cmd_vel",
+                control_qos
+            )
+
+            # Mission status publisher
+            self.mission_publishers[drone_id] = self.create_publisher(
+                String,
+                f"/{drone_id}/mission_status",
+                control_qos
+            )
+
+        # Global mission coordination
+        self.mission_status_pub = self.create_publisher(
+            String, "/mission/status", control_qos
+        )
+
+        self.flower_map_pub = self.create_publisher(
+            Float32MultiArray, "/mission/flower_map", control_qos
+        )
+
+        # Mission control subscriber
+        self.mission_control_sub = self.create_subscription(
+            String, "/mission/control", self._mission_control_callback, control_qos
+        )
+
+        # Main control loop timer
+        self.control_timer = self.create_timer(0.1, self._control_loop)  # 10Hz
+
+        self._setup_swarm_broadcast()
+        self._setup_ground_recall()
+
+        self.get_logger().info("✅ ROS2 Communication setup complete")
+
+    def _survey_launch(self):
+        path = Path(__file__).resolve().parent / "mission" / "survey_launch.json"
+        if not path.is_file():
+            return None
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return None
+        patches = data.get("patches") or []
+        spawns = data.get("spawns") or []
+        if len(patches) < self.num_drones or len(spawns) < self.num_drones:
+            self.get_logger().warn(
+                f"Survey file has {len(patches)} patches for {self.num_drones} drones. "
+                "Using the fixed patch table."
+            )
+            return None
+        return data
+
+    def _fixed_patch_table(self):
+        """Spawn patches in px4_multi_drone.sh order. Patch numbers start at 1."""
+        fruit = (
+            os.environ.get("PX4_GZ_WORLD", "") == "arg_fruits_tree"
+            or "arg_fruits" in os.environ.get("WORLD_FILE", "")
+        )
+        clover_x, clover_y = (15.0, 0.0) if fruit else (0.0, 0.0)
+        table = [
+            (1, 50.0, 50.0, "sunflower", 100),
+            (2, -50.0, 50.0, "sunflower", 100),
+            (3, clover_x, clover_y, "clover", 80),
+            (4, 25.0, 25.0, "support", 60),
+            (5, -25.0, 25.0, "support", 60),
+            (6, 0.0, 75.0, "north", 50),
+        ]
+        return table[: self.num_drones]
+
+    def _setup_swarm_broadcast(self):
+        """Each drone publishes its fixed patch and live pose; the others subscribe."""
+        qos = QoSProfile(
+            reliability=ReliabilityPolicy.RELIABLE,
+            history=HistoryPolicy.KEEP_LAST,
+            depth=10,
+        )
+        self._swarm_publishers = {}
+        self._swarm_subscribers = {}
+        self._swarm_heard: Dict[str, Dict[str, Optional[dict]]] = {}
+        self._swarm_states: List[dict] = []
+        self._swarm_tick = 0
+        # Same id created when this node started, shared with flower_predictions_<id>.json.
+        if not getattr(self, "_swarm_run_id", None):
+            self._swarm_run_id = time.strftime("%Y%m%d_%H%M%S")
+        self._swarm_json_path = (
+            Path(__file__).resolve().parent / f"swarm_states_{self._swarm_run_id}.json"
+        )
+        names = [f"drone{i}" for i in range(self.num_drones)]
+
+        for i, name in enumerate(names):
+            topic = f"/px4_{i}/swarm_state"
+            self._swarm_publishers[name] = self.create_publisher(String, topic, qos)
+            self._swarm_heard[name] = {other: None for other in names if other != name}
+
+        # drone0 subscribes to /px4_1 .. /px4_5, and each other drone does the same.
+        for listener_i, listener in enumerate(names):
+            for sender_i, sender in enumerate(names):
+                if sender_i == listener_i:
+                    continue
+                topic = f"/px4_{sender_i}/swarm_state"
+                key = f"{listener}:{sender}"
+                self._swarm_subscribers[key] = self.create_subscription(
+                    String,
+                    topic,
+                    lambda msg, who=listener_i: self._on_swarm_state(msg, who),
+                    qos,
+                )
+
+        self._write_swarm_json()
+        topics = ", ".join(f"/px4_{i}/swarm_state" for i in range(self.num_drones))
+        self.get_logger().info(f"📡 Swarm topics: {topics}")
+        self.get_logger().info(f"📝 Swarm JSON: {self._swarm_json_path}")
+
+    def _setup_ground_recall(self):
+        """Pi companions notify /swarm/box_hit; this PC publishes /mission/command."""
+        self._mission_cmd_pub = None
+        if swarm_net is None:
+            return
+        qos = swarm_net.swarm_qos()
+        self._mission_cmd_pub = self.create_publisher(
+            String, swarm_net.MISSION_CMD_TOPIC, qos,
+        )
+        self.create_subscription(
+            String, swarm_net.BOX_HIT_TOPIC, self._on_remote_box_hit, qos,
+        )
+        self.get_logger().info(
+            f"📡 Ground recall: sub {swarm_net.BOX_HIT_TOPIC} "
+            f"pub {swarm_net.MISSION_CMD_TOPIC}"
+        )
+
+    def _on_remote_box_hit(self, msg: String):
+        if swarm_net is None:
+            return
+        data = swarm_net.unpack_box_hit(msg.data)
+        if not data:
+            return
+        self.get_logger().info(
+            f"📡 Pi notified box_hit finder={data['finder']}"
+        )
+        self._recall_fleet(data["finder"], data["hits"])
+
+    def _publish_mission_command(self, command: str, finder: str = "") -> None:
+        if swarm_net is None or self._mission_cmd_pub is None:
+            return
+        out = String()
+        out.data = swarm_net.pack_command(command, finder)
+        self._mission_cmd_pub.publish(out)
+
+    def _recall_fleet(self, finder: str, hits) -> bool:
+        first = True
+        if box_alert is not None:
+            first = box_alert.announce_box(finder, hits)
+            box_alert.mark_drones(f.drone for f in self.fleet_drones.values())
+        if first:
+            self._publish_mission_command("return_to_base", finder)
+            self.get_logger().info("🏠 Box found — all drones returning to base camp")
+        return first
+
+    def _on_swarm_state(self, msg: String, listener_index: int):
+        """Store another drone's broadcast under the listener in the JSON map."""
+        try:
+            data = json.loads(msg.data)
+        except json.JSONDecodeError:
+            return
+        sender = data.get("drone")
+        listener = f"drone{listener_index}"
+        if not sender or sender == listener:
+            return
+        heard = self._swarm_heard.setdefault(listener, {})
+        heard[sender] = {
+            "patch": data.get("patch"),
+            "x": data.get("x"),
+            "y": data.get("y"),
+            "altitude": data.get("altitude"),
+        }
+
+    def _live_pose(self, index: int) -> Tuple[float, float, float]:
+        drone_id = self.drone_ids[index] if index < len(self.drone_ids) else ""
+        fleet = self.fleet_drones.get(drone_id) if hasattr(self, "fleet_drones") else None
+        if fleet is not None:
+            ctrl = fleet.drone
+            return float(ctrl.current_x), float(ctrl.current_y), float(ctrl.current_z)
+        status = self.drone_status.get(drone_id)
+        if status is None:
+            return 0.0, 0.0, 0.0
+        return float(status.position[0]), float(status.position[1]), float(status.position[2])
+
+    def _broadcast_swarm_state(self):
+        """Publish 2 Hz. PX4 z is NED, so altitude is height above the local origin."""
+        if not getattr(self, "_swarm_publishers", None):
+            return
+        self._swarm_tick += 1
+        if self._swarm_tick % 5 != 0:
+            return
+        published = {}
+        for i in range(self.num_drones):
+            name = f"drone{i}"
+            pub = self._swarm_publishers.get(name)
+            if pub is None:
+                continue
+            x, y, z = self._live_pose(i)
+            patch = self.flower_patches[i] if i < len(self.flower_patches) else None
+            payload = {
+                "drone": name,
+                "patch": int(patch.id) if patch is not None else i + 1,
+                "x": round(x, 2),
+                "y": round(y, 2),
+                "altitude": round(-z, 2),
+            }
+            published[name] = payload
+            msg = String()
+            msg.data = json.dumps(payload, separators=(",", ":"))
+            pub.publish(msg)
+        if published:
+            self._swarm_states.append(self._swarm_snapshot(published))
+            self._write_swarm_json()
+
+    def _swarm_snapshot(self, published: Dict[str, dict]) -> dict:
+        """One log row. Own pose matches /px4_N/swarm_state; other keys are the rest of the fleet."""
+        now = time.time()
+        stamp = time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(now))
+        stamp = f"{stamp}.{int((now % 1) * 1000):03d}"
+        names = [f"drone{i}" for i in range(self.num_drones)]
+        snapshot = {"time": stamp}
+        for name in names:
+            own = published.get(name)
+            if own is None:
+                continue
+            block = {
+                "patch": own["patch"],
+                "x": own["x"],
+                "y": own["y"],
+                "altitude": own["altitude"],
+            }
+            for other in names:
+                if other == name or other not in published:
+                    continue
+                pose = published[other]
+                block[other] = {
+                    "patch": pose["patch"],
+                    "x": pose["x"],
+                    "y": pose["y"],
+                    "altitude": pose["altitude"],
+                }
+            snapshot[name] = block
+        return snapshot
+
+    def _write_swarm_json(self):
+        """Append-only log. states[] keeps every 2 Hz sample from this spawn."""
+        document = {"id": self._swarm_run_id, "states": self._swarm_states}
+        path = self._swarm_json_path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = path.with_suffix(".json.tmp")
+        tmp.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
+        tmp.replace(path)
+
+    def _init_px4_fleet(self):
+        """Attach to PX4 SITL via prebuilt DroneController (/px4_0 .. /px4_5)."""
+        self.get_logger().info("🔗 Connecting to PX4 fleet (DroneController)...")
+        try:
+            if os.path.isfile(FLEET_STATE_PATH):
+                os.remove(FLEET_STATE_PATH)
+        except OSError:
+            pass
+
+        capture_root = (
+            Path(__file__).resolve().parent
+            / "multi_drone_script"
+            / "captures"
+            / self._swarm_run_id
+        )
+        self.get_logger().info(f"📷 Captures for this spawn: {capture_root}")
+        try:
+            for i, drone_id in enumerate(self.drone_ids):
+                folder = captured_dir_name(i) if captured_dir_name else f"drone{i + 1}"
+                cap_dir = capture_root / folder
+                cap_dir.mkdir(parents=True, exist_ok=True)
+                controller = DroneController(
+                    namespace=f"/px4_{i}",
+                    target_sys=i + 1,
+                    drone_label=f"Drone {i}",
+                    instance_id=i,
+                    capture_dir=str(cap_dir),
+                )
+                fleet = FleetDrone(i, controller)
+                if not controller.camera_topic:
+                    controller.rediscover_camera()
+                self.fleet_drones[drone_id] = fleet
+                for _ in range(5):
+                    rclpy.spin_once(controller, timeout_sec=0.1)
+                self.get_logger().info(
+                    f"   {drone_id} <-> /px4_{i} attached"
+                )
+        except Exception as e:
+            self.get_logger().error(f"PX4 fleet connect failed: {e}")
+            self.fleet_drones = {}
+
+    def _start_box_detection_loop(self):
+        """Gazebo camera -> YOLO target-box detect at ~1 Hz, off the flight loop."""
+        if detect_image is None:
+            return
+        if not self.fleet_drones:
+            self.get_logger().warn("No PX4 fleet — box detection loop not started")
+            return
+        self._flower_detect_thread = threading.Thread(
+            target=self._flower_detect_loop,
+            name="box_detect",
+            daemon=True,
+        )
+        self._flower_detect_thread.start()
+        self.get_logger().info(
+            f"📷 YOLO on Gazebo drone down-cameras ({len(self.fleet_drones)} drones, ~1 Hz; not Pi CSI)"
+        )
+
+    def _stop_flower_detection(self):
+        stop = getattr(self, "_flower_detect_stop", None)
+        thread = getattr(self, "_flower_detect_thread", None)
+        if stop is not None:
+            stop.set()
+        if thread is not None and thread.is_alive():
+            thread.join(timeout=2.0)
+
+    def destroy_node(self):
+        self._stop_flower_detection()
+        super().destroy_node()
+
+    def _ensure_flower_detector(self) -> bool:
+        if detect_image is None:
+            return False
+        if get_yolo is None:
+            return True
+        try:
+            model = get_yolo()
+            status = yolo_status() if yolo_status else "off"
+            if model is None:
+                self.get_logger().warn(f"YOLO not attached ({status}). Colour backup still runs.")
+            else:
+                self.get_logger().info(f"YOLO attached: {status}")
+        except Exception as e:
+            self.get_logger().warn(f"YOLO load: {e} — yellow-box backup still runs")
+        return True
+
+    @staticmethod
+    def _gz_image_to_rgb(msg) -> Optional[np.ndarray]:
+        """Copy a Gazebo Image protobuf into HxWx3 uint8 (RGB or BGR)."""
+        if msg is None:
+            return None
+        try:
+            width = int(msg.width)
+            height = int(msg.height)
+            if width <= 0 or height <= 0:
+                return None
+            buf = np.frombuffer(bytes(msg.data), dtype=np.uint8)
+            if buf.size >= height * width * 4:
+                return buf[: height * width * 4].reshape(height, width, 4)[:, :, :3].copy()
+            if buf.size >= height * width * 3:
+                return buf[: height * width * 3].reshape(height, width, 3).copy()
+        except Exception:
+            return None
+        return None
+
+    def _flower_detect_loop(self):
+        """Background: YOLO (and yellow-box backup) once per second per drone."""
+        if not self._ensure_flower_detector():
+            return
+        period = 1.0
+        while not self._flower_detect_stop.is_set():
+            cycle_start = time.time()
+            if box_alert is not None and box_alert.recall_requested():
+                self._flower_detect_stop.wait(period)
+                continue
+            for drone_id, fleet in list(self.fleet_drones.items()):
+                if self._flower_detect_stop.is_set():
+                    break
+                self._detect_box_for_drone(drone_id, fleet.drone)
+            elapsed = time.time() - cycle_start
+            remaining = period - elapsed
+            if remaining > 0:
+                self._flower_detect_stop.wait(remaining)
+
+    def _detect_box_for_drone(self, drone_id: str, ctrl) -> None:
+        if not self.mission_active:
+            return
+        if abs(float(getattr(ctrl, "current_z", 0.0) or 0.0)) < 3.0:
+            return
+        msg = getattr(ctrl, "_latest_image", None)
+        image_count = int(getattr(ctrl, "_image_count", 0) or 0)
+        if msg is None or image_count <= 0:
+            if not self._flower_detect_warned.get(drone_id):
+                cam = getattr(ctrl, "camera_topic", "") or "none"
+                self.get_logger().warn(
+                    f"[{drone_id}] No Gazebo camera frame yet (topic={cam}). "
+                    "Use gz_x500_mono_cam_down. YOLO waiting."
+                )
+                self._flower_detect_warned[drone_id] = True
+            return
+
+        if image_count == self._last_detect_image_count.get(drone_id, -1):
+            return
+        self._last_detect_image_count[drone_id] = image_count
+
+        rgb = self._gz_image_to_rgb(msg)
+        if rgb is None:
+            self.get_logger().warn(f"[{drone_id}] Could not decode _latest_image")
+            return
+
+        try:
+            detections = detect_image(rgb, use_yolo=True)
+        except Exception as e:
+            self.get_logger().error(f"[{drone_id}] YOLO detect failed: {e}")
+            return
+
+        self.latest_flower_detections[drone_id] = detections
+        if detections_are_target(detections):
+            self.total_flowers_detected += len(detections)
+            summary = ", ".join(
+                f"{d.get('name')} conf={d.get('confidence', 0):.2f} src={d.get('source')}"
+                for d in detections[:3]
+            )
+            self.get_logger().info(
+                f"📦 [{drone_id}] YOLO box DETECTED: {len(detections)} hit(s) "
+                f"frame={image_count} {rgb.shape[1]}x{rgb.shape[0]} | {summary}"
+            )
+            first = self._recall_fleet(drone_id, detections)
+            if first and mark_finder_capture_dir is not None:
+                new_dir = mark_finder_capture_dir(ctrl.capture_dir)
+                ctrl.capture_dir = str(new_dir)
+            if save_annotated_rgb is not None:
+                stamp = time.strftime("%Y%m%d_%H%M%S")
+                dest = Path(ctrl.capture_dir) / f"yolo_hit_{stamp}_bbox.png"
+                try:
+                    save_annotated_rgb(rgb, detections, dest)
+                    self.get_logger().info(f"📷 [{drone_id}] bbox capture: {dest}")
+                except Exception as exc:
+                    self.get_logger().warn(f"[{drone_id}] bbox save failed: {exc}")
+            return
+
+        n = self._box_miss_count.get(drone_id, 0) + 1
+        self._box_miss_count[drone_id] = n
+        if n % 5 == 1:
+            self.get_logger().info(
+                f"📦 [{drone_id}] YOLO: no box "
+                f"frame={image_count} {rgb.shape[1]}x{rgb.shape[0]} "
+                f"({yolo_status() if yolo_status else 'off'})"
+            )
+
+    def _sync_state_from_px4(self):
+        """Copy live PX4 local position into drone_status (State)."""
+        for drone_id, fleet in self.fleet_drones.items():
+            status = self.drone_status[drone_id]
+            ctrl = fleet.drone
+            status.position = (ctrl.current_x, ctrl.current_y, ctrl.current_z)
+            fleet.sync_pose()
+
+    def _state_callback(self, drone_id: str, msg: Odometry):
+        """Process drone state updates from PX4"""
+        if drone_id not in self.drone_status:
+            return
+
+        pose = msg.pose.pose
+        twist = msg.twist.twist
+
+        # Update drone status
+        status = self.drone_status[drone_id]
+        status.position = (pose.position.x, pose.position.y, pose.position.z)
+
+        # Simulate battery drain during mission
+        if self.mission_active and status.battery > 0:
+            status.battery -= 0.01  # Drain 1% every 10 seconds at 10Hz
+
+    def _assign_patch_from_position(self, drone_id: str):
+        """Assign nearest flower patch from live pose (camera pixels unused)."""
+        if drone_id not in self.drone_status:
+            return
+        status = self.drone_status[drone_id]
+        if status.current_target:
+            return
+        x, y, z = status.position
+        best = None
+        best_d = float("inf")
+        for patch in self.flower_patches:
+            distance = math.sqrt((x - patch.center_x) ** 2 + (y - patch.center_y) ** 2)
+            local_over_home = math.sqrt(x * x + y * y) < (patch.radius + 10)
+            if distance < patch.radius + 10 or local_over_home:
+                if distance < best_d:
+                    best_d = distance
+                    best = patch
+        if best is not None:
+            status.current_target = best
+
+    def _image_callback(self, drone_id: str, msg: Image):
+        """Process camera images for flower detection"""
+        del msg
+        self._assign_patch_from_position(drone_id)
+
+    def _mission_control_callback(self, msg: String):
+        """Handle mission control commands"""
+        command = msg.data.lower()
+
+        if command == "start_pollination":
+            self._start_pollination_mission()
+        elif command == "pause_mission":
+            self._pause_mission()
+        elif command == "resume_mission":
+            self._resume_mission()
+        elif command == "abort_mission":
+            self._abort_mission()
+        elif command == "return_to_home":
+            self._return_to_home()
+
+    def _control_loop(self):
+        """Main control loop - runs at 10Hz"""
+        self._sync_state_from_px4()
+        self._broadcast_swarm_state()
+        for drone_id in self.drone_ids:
+            self._assign_patch_from_position(drone_id)
+
+        if not self.mission_active:
+            return
+
+        # Fleet flight is owned by mission_thread + DroneController. Do not
+        # issue competing go_to_safe / Twist from this timer.
+        if self.fleet_drones:
+            for drone_id in self.drone_ids:
+                self._update_pollination_status(drone_id, [0.0, 0.0, 0.0, 0.0, 1.0])
+            self._update_mission_metrics()
+            self._publish_mission_status()
+            return
+
+        for drone_id in self.drone_ids:
+            if drone_id not in self.drone_status:
+                continue
+            if self._check_safety(drone_id):
+                self._execute_drone_mission(drone_id)
+            else:
+                self._handle_safety_violation(drone_id)
+
+        self._update_mission_metrics()
+        self._publish_mission_status()
+
+    def _check_safety(self, drone_id: str) -> bool:
+        """Check if drone operation is safe"""
+        status = self.drone_status[drone_id]
+
+        # Check battery level
+        if status.battery < 20:
+            return False
+
+        # Check geo-fence
+        if self.safety_manager:
+            x, y, z = status.position
+            pose = Pose(x=x, y=y, z=z, yaw=0.0)
+            if self.safety_manager.should_trigger_rth(pose, link_quality=1.0):
+                return False
+
+        return True
+
+    def _execute_drone_mission(self, drone_id: str):
+        """Execute pollination mission for a specific drone"""
+        status = self.drone_status[drone_id]
+
+        # Real flight is mission_thread + DroneController. Keep this loop for
+        # scoring only so 6x DroneBrain.step cannot starve offboard setpoints.
+        if self.fleet_drones:
+            self._update_pollination_status(drone_id, [0.0, 0.0, 0.0, 0.0, 1.0])
+            return
+
+        brain = self._get_drone_brain(drone_id)
+        if not brain:
+            return
+
+        # Build observation vector
+        obs_vector = self._build_pollination_observation(drone_id)
+
+        # Get messages from other drones (simplified)
+        msg_vector = self._build_swarm_message(drone_id)
+
+        # Create environment reading
+        env_reading = EnvReading(
+            wind_speed=2.0,  # Could be from weather sensor
+            humidity=0.65,
+            temperature=23.0
+        )
+
+        try:
+            # Run IntelleSwarm DroneBrain
+            result = brain.step(
+                obs_vec=obs_vector,
+                msg_vec=msg_vector,
+                env=env_reading
+            )
+
+            action = result["action"][0]  # Get first element
+
+            # Convert to pollination command
+            cmd = self._action_to_pollination_command(drone_id, action)
+
+            # Publish command
+            if drone_id in self.cmd_publishers:
+                self.cmd_publishers[drone_id].publish(cmd)
+
+            # Update pollination status
+            self._update_pollination_status(drone_id, action)
+
+        except Exception as e:
+            self.get_logger().warn(f"Mission execution error for {drone_id}: {e}")
+
+    def _build_pollination_observation(self, drone_id: str):
+        """Build observation vector specific to pollination missions"""
+        import torch
+
+        status = self.drone_status[drone_id]
+        x, y, z = status.position
+
+        # Basic observation components
+        obs_data = [
+            x, y, z,  # Position
+            status.battery / 100.0,  # Battery level (normalized)
+            status.pollination_payload / 100.0,  # Payload level
+        ]
+
+        # Add flower patch information
+        for patch in self.flower_patches:
+            distance = math.sqrt((x - patch.center_x)**2 + (y - patch.center_y)**2)
+            bearing = math.atan2(patch.center_y - y, patch.center_x - x)
+            obs_data.extend([
+                distance / 100.0,  # Normalized distance
+                bearing / math.pi,  # Normalized bearing
+                patch.priority / 100.0,  # Normalized priority
+                patch.pollination_status  # Completion status
+            ])
+
+        # Pad or trim to obs_dim
+        while len(obs_data) < self.obs_dim:
+            obs_data.append(0.0)
+        obs_data = obs_data[:self.obs_dim]
+
+        return torch.tensor([obs_data], dtype=torch.float32)
+
+    def _build_swarm_message(self, drone_id: str):
+        """Build message vector from other drones"""
+        import torch
+
+        # For now, simple message with nearest neighbor info
+        status = self.drone_status[drone_id]
+        x, y, z = status.position
+
+        msg_data = [0.0] * self.msg_dim
+
+        # Find nearest drone
+        min_distance = float('inf')
+        nearest_drone = None
+
+        for other_id, other_status in self.drone_status.items():
+            if other_id != drone_id:
+                ox, oy, oz = other_status.position
+                distance = math.sqrt((x-ox)**2 + (y-oy)**2 + (z-oz)**2)
+                if distance < min_distance:
+                    min_distance = distance
+                    nearest_drone = other_status
+
+        # Encode nearest neighbor information
+        if nearest_drone:
+            ox, oy, oz = nearest_drone.position
+            msg_data[0] = (ox - x) / 100.0  # Relative x
+            msg_data[1] = (oy - y) / 100.0  # Relative y
+            msg_data[2] = (oz - z) / 50.0   # Relative z
+            msg_data[3] = nearest_drone.battery / 100.0  # Their battery
+
+        return torch.tensor([msg_data], dtype=torch.float32)
+
+    def _action_to_pollination_command(self, drone_id: str, action: List[float]) -> Twist:
+        """Convert MARL action to ROS Twist command for pollination"""
+        cmd = Twist()
+
+        if len(action) >= 4:
+            # Scale actions appropriately for pollination speeds
+            cmd.linear.x = float(action[0]) * self.pollination_speed
+            cmd.linear.y = float(action[1]) * self.pollination_speed
+            cmd.linear.z = float(action[2]) * 1.0  # Slower vertical movement
+            cmd.angular.z = float(action[3]) * 0.5  # Gentle turning
+
+        return cmd
+
+    def _get_drone_brain(self, drone_id: str):
+        """Create a DroneBrain on first use (scoring-only / no-fleet path)."""
+        if drone_id in self.drone_brains:
+            return self.drone_brains[drone_id]
+        if DroneBrain is None:
+            return None
+        try:
+            self.drone_brains[drone_id] = DroneBrain(
+                obs_dim=self.obs_dim,
+                msg_dim=self.msg_dim,
+                action_dim=self.action_dim,
+                world_latent_dim=16,
+                enable_collision_avoidance=False,
+            )
+            return self.drone_brains[drone_id]
+        except Exception as e:
+            self.get_logger().warn(f"DroneBrain not available for {drone_id}: {e}")
+            self.drone_brains[drone_id] = None
+            return None
+
+    def _update_pollination_status(self, drone_id: str, action: List[float]):
+        """Update pollination status based on drone actions"""
+        status = self.drone_status[drone_id]
+        x, y, z = status.position
+
+        # Check if drone is pollinating (near flowers and at right altitude)
+        if status.current_target and len(action) >= 5:
+            patch = status.current_target
+            distance_to_patch = math.sqrt(
+                (x - patch.center_x)**2 + (y - patch.center_y)**2
+            )
+
+            altitude_m = abs(z)
+            altitude_ok = abs(altitude_m - self.coverage_height) < 1.0
+            position_ok = distance_to_patch < patch.radius or (
+                abs(x) < patch.radius and abs(y) < patch.radius
+            )
+
+            if altitude_ok and position_ok and action[4] > 0.5:  # Pollination action
+                # Increase pollination status
+                pollination_rate = 0.01  # 1% per cycle
+                patch.pollination_status = min(1.0, patch.pollination_status + pollination_rate)
+                status.flowers_pollinated += 1
+                status.pollination_payload = max(0, status.pollination_payload - 0.5)
+
+                if patch.pollination_status >= 1.0:
+                    status.current_target = None  # Move to next target
+
+    def _handle_safety_violation(self, drone_id: str):
+        """Handle safety violations (low battery, geo-fence, etc.)"""
+        self.get_logger().warn(f"🚨 Safety violation for {drone_id}, returning to home")
+
+        status = self.drone_status[drone_id]
+        status.mission_state = "returning_home"
+        fleet = self.fleet_drones.get(drone_id)
+        if fleet is not None:
+            # Prebuilt collision-aware waypoint (FleetRegistry.resolve_waypoint)
+            fleet.go_to_safe(0.0, 0.0, -max(self.coverage_height, 3.0))
+            return
+
+        cmd = Twist()
+        x, y, z = status.position
+
+        # Head toward origin
+        cmd.linear.x = -x * 0.1
+        cmd.linear.y = -y * 0.1
+        cmd.linear.z = -z * 0.05 if z > 5 else 0.0
+
+        if drone_id in self.cmd_publishers:
+            self.cmd_publishers[drone_id].publish(cmd)
+
+    def _get_drone_brain(self, drone_id: str):
+        """Create a DroneBrain on first use (scoring-only path)."""
+        if drone_id in self.drone_brains:
+            return self.drone_brains[drone_id]
+        if DroneBrain is None:
+            return None
+        try:
+            self.drone_brains[drone_id] = DroneBrain(
+                obs_dim=self.obs_dim,
+                msg_dim=self.msg_dim,
+                action_dim=self.action_dim,
+                world_latent_dim=16,
+                enable_collision_avoidance=False,
+            )
+            return self.drone_brains[drone_id]
+        except Exception as e:
+            self.get_logger().warn(f"DroneBrain not available for {drone_id}: {e}")
+            self.drone_brains[drone_id] = None
+            return None
+
+    def _update_mission_metrics(self):
+        """Update mission performance metrics"""
+        if not self.mission_active:
+            return
+
+        # Calculate pollination efficiency
+        total_pollination = sum(patch.pollination_status for patch in self.flower_patches)
+        max_pollination = len(self.flower_patches)
+        self.performance_metrics['pollination_efficiency'] = total_pollination / max_pollination
+
+        # Calculate coverage completeness
+        completed_patches = sum(1 for patch in self.flower_patches if patch.pollination_status >= 1.0)
+        self.performance_metrics['coverage_completeness'] = completed_patches / max_pollination
+
+        # Calculate average battery consumption
+        total_battery = sum(status.battery for status in self.drone_status.values())
+        avg_battery = total_battery / len(self.drone_status)
+        self.performance_metrics['energy_consumption'] = (100 - avg_battery) / 100.0
+
+    def _publish_mission_status(self):
+        """Publish mission status and metrics"""
+        if not self.mission_active:
+            return
+
+        # Mission status message
+        status_msg = String()
+        status_msg.data = f"Active|Efficiency:{self.performance_metrics['pollination_efficiency']:.2f}|" \
+                         f"Coverage:{self.performance_metrics['coverage_completeness']:.2f}|" \
+                         f"Energy:{self.performance_metrics['energy_consumption']:.2f}"
+
+        self.mission_status_pub.publish(status_msg)
+
+        # Flower map message
+        flower_data = Float32MultiArray()
+        for patch in self.flower_patches:
+            flower_data.data.extend([
+                patch.center_x, patch.center_y, patch.radius,
+                patch.priority, patch.pollination_status
+            ])
+
+        self.flower_map_pub.publish(flower_data)
+
+    # Mission Control Methods
+
+    def _start_pollination_mission(self):
+        """Start the pollination mission (auto-takeoff + grid like multi_drone_script)."""
+        if self.mission_threads and any(t.is_alive() for t in self.mission_threads):
+            self.get_logger().warn("Pollination mission already running")
+            return
+
+        self.get_logger().info("🌻 Starting Pollination Mission!")
+        self.mission_active = True
+        self.mission_start_time = time.time()
+        if box_alert is not None:
+            box_alert.reset()
+        if reset_prediction_log is not None:
+            path = reset_prediction_log(self._swarm_run_id)
+            self.get_logger().info(f"📝 Flower predictions JSON: {path}")
+
+        for patch in self.flower_patches:
+            patch.pollination_status = 0.0
+
+        for i, drone_id in enumerate(self.drone_ids):
+            self.drone_status[drone_id].mission_state = "active_mission"
+            self.drone_status[drone_id].current_target = self.flower_patches[i % len(self.flower_patches)]
+
+        if not self.fleet_drones:
+            self.get_logger().warn("No PX4 fleet attached — scoring only, no flight")
+            return
+
+        survey = self._survey_launch()
+        if survey is not None:
+            idle = [
+                survey["patches"][i]["drone_id"]
+                for i in range(self.num_drones)
+                if not survey["patches"][i].get("waypoints_m")
+            ]
+            if idle:
+                self.get_logger().error(
+                    f"Survey file has no waypoints for {idle}. Not starting flight."
+                )
+                return
+        alt_ned = -abs(self.coverage_height)
+        for i, drone_id in enumerate(self.drone_ids):
+            fleet = self.fleet_drones[drone_id]
+            ctrl = fleet.drone
+            home = (ctrl.current_x, ctrl.current_y, ctrl.current_z)
+            delay = i * 3.0
+            if survey is not None:
+                spawn = survey["spawns"][i]
+                patch = survey["patches"][i]
+                altitude = float(survey.get("altitude_m") or abs(alt_ned))
+                waypoints = [
+                    (float(point[1]) - float(spawn["y"]), float(point[0]) - float(spawn["x"]))
+                    for point in patch["waypoints_m"]
+                ]
+                target = survey_thread
+                args = (fleet, waypoints, home, -abs(altitude), delay)
+                detail = (
+                    f"survey {survey.get('area')} {patch['drone_id']} "
+                    f"rows {patch.get('first_row')}-{patch.get('last_row')} "
+                    f"{len(waypoints)} waypoints at {altitude:.0f} m"
+                )
+            else:
+                target = mission_thread
+                args = (fleet, (0.0, 0.0, alt_ned), home, "cm", delay)
+                detail = "takeoff + cm grid over spawn patch"
+            t = threading.Thread(
+                target=target,
+                args=args,
+                name=f"pollination_drone_{i}",
+                daemon=True,
+            )
+            t.start()
+            self.mission_threads.append(t)
+            self.get_logger().info(f"   {drone_id}: {detail} (stagger {delay:.0f}s)")
+
+    def _ensure_all_landed(self):
+        """Land any drone that is still armed (end of mission or --duration)."""
+        self.get_logger().info("🛬 Landing remaining drones...")
+        for fleet in self.fleet_drones.values():
+            fleet.drone._abort_mission = True
+        # Let each mission thread land itself so we do not fight the same PX4 instance.
+        deadline = time.time() + 80.0
+        while time.time() < deadline and any(t.is_alive() for t in self.mission_threads):
+            _spin_fleet(self, 0.05)
+        for drone_id, fleet in self.fleet_drones.items():
+            try:
+                if fleet.drone.is_armed() or abs(fleet.drone.current_z) > 0.4:
+                    land_and_wait(fleet.drone)
+                self.drone_status[drone_id].mission_state = "landed"
+            except Exception as exc:
+                self.get_logger().warn(f"Land failed for {drone_id}: {exc}")
+        self.mission_active = False
+
+    def _pause_mission(self):
+        """Pause the mission"""
+        self.get_logger().info("⏸️ Pausing Mission")
+        for drone_id in self.drone_ids:
+            self.drone_status[drone_id].mission_state = "paused"
+
+    def _resume_mission(self):
+        """Resume the mission"""
+        self.get_logger().info("▶️ Resuming Mission")
+        for drone_id in self.drone_ids:
+            self.drone_status[drone_id].mission_state = "active_mission"
+
+    def _abort_mission(self):
+        """Abort the mission"""
+        self.get_logger().info("🛑 Aborting Mission")
+        self.mission_active = False
+        self._return_to_home()
+
+    def _return_to_home(self):
+        """Return all drones to home"""
+        self.get_logger().info("🏠 Returning all drones to home")
+        for drone_id in self.drone_ids:
+            self.drone_status[drone_id].mission_state = "returning_home"
+
+
+def _spin_fleet(node: IntelleSwarmPollinationNode, timeout_sec: float = 0.05) -> None:
+    """Spin pollination node AND every DroneController (offboard setpoint timers)."""
+    rclpy.spin_once(node, timeout_sec=timeout_sec)
+    for fleet in node.fleet_drones.values():
+        rclpy.spin_once(fleet.drone, timeout_sec=0.0)
+
+
+def _wait_for_px4(node: IntelleSwarmPollinationNode, timeout_sec: float = 40.0) -> None:
+    """Drain PX4 status/pose callbacks before takeoff (same idea as multi_mission_runner)."""
+    node.get_logger().info("Waiting for PX4 uXRCE VehicleStatus / local position...")
+    end = time.time() + timeout_sec
+    while time.time() < end and rclpy.ok():
+        _spin_fleet(node, 0.1)
+        connected = sum(1 for f in node.fleet_drones.values() if f.drone.nav_state != 0)
+        if connected == len(node.fleet_drones) and node.fleet_drones:
+            break
+    for drone_id, fleet in node.fleet_drones.items():
+        d = fleet.drone
+        node.get_logger().info(
+            f"   {drone_id} nav={d.nav_state} arm={d.arm_state} "
+            f"pose=({d.current_x:.2f},{d.current_y:.2f},{d.current_z:.2f})"
+        )
+    if all(f.drone.nav_state == 0 for f in node.fleet_drones.values()):
+        node.get_logger().error(
+            "No PX4 VehicleStatus received — check instance_N/out.log for "
+            "'Timed out waiting for Gazebo world' or missing IMU"
+        )
+
+
+def main(args=None):
+    """Main entry point"""
+    rclpy.init(args=args)
+    install_thread_safe_spin()
+
+    node = IntelleSwarmPollinationNode()
+
+    try:
+        # Do NOT rclpy.spin(node): that executor never runs DroneController timers,
+        # so offboard setpoints never stream and drones stay on the ground.
+        if node.fleet_drones:
+            _wait_for_px4(node)
+            for fleet in node.fleet_drones.values():
+                for _ in range(20):
+                    rclpy.spin_once(fleet.drone, timeout_sec=0.1)
+        if getattr(node, "_auto_start", True):
+            node._start_pollination_mission()
+        started = time.time()
+        duration = float(getattr(node, "_duration_sec", 0) or 0)
+        if duration > 0:
+            node.get_logger().info(
+                f"Flight time cap: {duration:.0f}s then all drones land "
+                "(POLLINATION_DURATION / --duration)"
+            )
+        while rclpy.ok():
+            _spin_fleet(node, 0.05)
+            threads = getattr(node, "mission_threads", [])
+            if threads and not any(t.is_alive() for t in threads):
+                node._ensure_all_landed()
+                break
+            if duration > 0 and (time.time() - started) >= duration:
+                node.get_logger().warn(
+                    f"--duration {duration:.0f}s reached — landing remaining drones"
+                )
+                node._ensure_all_landed()
+                break
+    except (KeyboardInterrupt, ExternalShutdownException):
+        node.get_logger().info("🛑 Shutting down pollination system...")
+        try:
+            node._ensure_all_landed()
+        except Exception:
+            pass
+    finally:
+        for fleet in node.fleet_drones.values():
+            try:
+                fleet.close()
+                fleet.drone.destroy_node()
+            except Exception:
+                pass
+        node.destroy_node()
+        try:
+            if rclpy.ok():
+                rclpy.shutdown()
+        except Exception:
+            pass
+
+
+if __name__ == "__main__":
+    main()

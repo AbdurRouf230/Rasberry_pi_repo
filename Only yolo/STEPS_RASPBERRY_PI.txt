@@ -1,0 +1,159 @@
+================================================================
+Only yolo — every Raspberry Pi 4B step (CSI camera + box YOLO)
+================================================================
+Goal: prove the trained box model on the Pi camera.
+Measure inference time (ms), FPS, confidence, hit vs miss.
+No ROS 2. No Gazebo. No Pixhawk.
+
+Hardware
+- Raspberry Pi 4B (4 GB or 8 GB preferred)
+- Official Raspberry Pi Camera on the CSI ribbon (camera port)
+- Cardboard box in front of the camera
+- Keyboard/SSH from the PC is fine
+
+----------------------------------------------------------------
+A. OS and camera
+----------------------------------------------------------------
+1. Flash Ubuntu 22.04 64-bit Server for Raspberry Pi (matches ROS 2 Humble
+   later). Raspberry Pi Imager -> Ubuntu 22.04.5 LTS (64-bit).
+
+2. Boot, connect WiFi, enable SSH.
+
+   All Pi packages (YOLO + ROS 2) from the repo root, install only:
+
+     sed -i 's/\r$//' ../install_deps.sh
+     bash ../install_deps.sh
+
+   YOLO-only: SKIP_ROS=1 bash ../install_deps.sh
+
+   sudo apt update
+   sudo apt upgrade -y
+   sudo reboot
+
+3. Enable the CSI camera.
+
+   Ubuntu 22.04 on Pi 4:
+     sudo apt install -y python3-libcamera python3-picamera2 python3-opencv
+     # If /boot/firmware/config.txt exists, confirm it has:
+     #   camera_auto_detect=1
+     sudo reboot
+
+   Check the sensor:
+     libcamera-hello -t 2000
+     # or
+     rpicam-hello -t 2000
+   You should see a preview or a saved frame, not "no cameras available".
+
+4. Copy this folder onto the Pi (from the PC, on the same WiFi/LAN).
+
+   Example (run on the PC, adjust user/ip):
+     scp -r "E:\Multi Drone\Rasberry-Repo\Only yolo" pi@192.168.10.20:~/only_yolo
+
+   On the Pi:
+     ls ~/only_yolo/weights/best.pt
+   That file MUST exist. If scp skipped it because it was large, copy it again.
+
+----------------------------------------------------------------
+B. Python packages
+----------------------------------------------------------------
+5. On the Pi:
+
+   cd ~/only_yolo
+   sudo apt install -y python3-pip python3-venv libopenblas-dev
+   python3 -m venv .venv
+   source .venv/bin/activate
+   pip install -U pip wheel
+   pip install -r requirements.txt
+
+   picamera2 is the apt package from step 3, not pip.
+
+6. Confirm weights load:
+
+   source .venv/bin/activate
+   python3 - << 'PY'
+from box_model import get_model, resolve_weights
+print(resolve_weights())
+print(get_model().names)
+PY
+   Expected: class {0: 'box'}  (or similar)
+
+----------------------------------------------------------------
+C. Camera only (no YOLO)
+----------------------------------------------------------------
+7. Point the ribbon camera at anything bright.
+
+   source .venv/bin/activate
+   cd ~/only_yolo
+   python3 check_camera.py
+
+   Pass: prints frame shapes and writes results/camera_check.jpg
+   Fail: "No CSI picamera2 and no OpenCV camera" -> ribbon not seated,
+         camera overlay, or you are in SSH without libcamera. Reseat the
+         cable (blue side toward USB ports on a Pi 4).
+
+----------------------------------------------------------------
+D. Live YOLO bench (inference time + accuracy-on-camera)
+----------------------------------------------------------------
+8. Point the camera at the cardboard box, then at empty floor.
+
+   source .venv/bin/activate
+   cd ~/only_yolo
+   python3 bench_camera.py --imgsz 320 --conf 0.35
+
+   Pi 4B + PyTorch yolov8 is SLOW. Expect roughly 1–4 FPS at imgsz=320.
+   That is still a valid measurement.
+
+   You should see lines like:
+     HIT  frame=10  420.1 ms fps=2.38 boxes=1 conf=0.87
+     miss frame=11  415.0 ms fps=2.41 boxes=0 conf=0.00
+
+9. Ctrl+C to stop. Open:
+
+     results/bench_camera_YYYYMMDD_HHMMSS.csv
+     results/hits/hit_*.jpg     (green box drawn)
+
+   Accuracy check without a labelled dataset:
+     - Box in view  -> HIT with conf typically > 0.5
+     - Empty floor  -> miss
+   If floor/red objects HIT, conf is too low; rerun with --conf 0.6
+
+----------------------------------------------------------------
+E. Image folder bench (repeatable numbers)
+----------------------------------------------------------------
+10. samples/ has ~100 online Wikimedia photos (hit_* boxes, miss_* empty).
+    No Gazebo / simulation frames. Re-download: python3 download_online_samples.py
+
+    python3 bench_images.py --imgsz 320 --conf 0.35
+
+    Prints TP/FP/FN/TN, precision, recall, mean ms, p50 ms.
+    CSV: results/bench_images_*.csv
+    Boxed copies: results/image_hits/
+    See samples/SOURCES.txt
+
+----------------------------------------------------------------
+F. Faster path on Pi 4B (optional, recommended)
+----------------------------------------------------------------
+11. Export NCNN once (takes several minutes):
+
+    python3 export_ncnn.py
+
+    Then:
+
+    export BOX_YOLO_WEIGHTS=~/only_yolo/weights/best_ncnn_model
+    python3 bench_camera.py --imgsz 320
+
+    Compare mean_ms vs the .pt run. Use whichever is faster.
+
+----------------------------------------------------------------
+G. What “working perfectly” means
+----------------------------------------------------------------
+- check_camera.py saves a real photo
+- YOLO prints attached:best.pt and classes include box
+- Cardboard box in frame -> HIT + bbox jpg
+- Empty scene -> miss
+- CSV has infer_ms for every frame
+- You know mean ms and FPS on THIS Pi 4B
+
+Do not fly. Do not install ROS 2 in this folder. ROS 2 is in Simulation.
+Simulation YOLO uses each Gazebo drone's camera on the PC, not this CSI camera.
+================================================================

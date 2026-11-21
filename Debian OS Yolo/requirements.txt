@@ -1,0 +1,6 @@
+ultralytics>=8.3.0
+opencv-python-headless>=4.8.0
+numpy>=1.24.0
+Pillow>=10.0.0
+# On Raspberry Pi OS / Ubuntu with CSI camera also install:
+#   sudo apt install -y python3-picamera2 python3-libcamera python3-opencv

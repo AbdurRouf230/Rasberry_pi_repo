@@ -1,0 +1,12 @@
+~100 photos from Wikimedia Commons (online only). No Gazebo / simulation frames.
+
+  hit_online_*   cardboard / moving / corrugated boxes  (~80)
+  miss_online_*  grass / sky / soil / lawns             (~20)
+
+Thumbs are 800px wide. To fetch more:
+
+  python download_online_samples.py
+
+On the Pi:
+
+  python3 bench_images.py --imgsz 320 --conf 0.35

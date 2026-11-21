@@ -1,0 +1,84 @@
+{
+  "coordinate_order": "lonlat",
+  "coordinates": [
+    [
+      -122.42042284,
+      37.77363349
+    ],
+    [
+      -122.41837716,
+      37.77363349
+    ],
+    [
+      -122.41837716,
+      37.77616651
+    ],
+    [
+      -122.42042284,
+      37.77616651
+    ]
+  ],
+  "num_patches": 3,
+  "sweep_angle_deg": 90,
+  "target_gsd_cm": 2.0,
+  "front_overlap": 0.7,
+  "side_overlap": 0.65,
+  "camera": {
+    "sensor_width_mm": 6.17,
+    "sensor_height_mm": 4.55,
+    "focal_length_mm": 4.5,
+    "image_width_px": 4000,
+    "image_height_px": 3000,
+    "min_exposure_s": 0.001,
+    "max_photos_per_s": 1.0
+  },
+  "drones": [
+    {
+      "id": "drone1",
+      "home": [
+        -122.42110474,
+        37.77456528
+      ],
+      "max_flight_time_min": 20
+    },
+    {
+      "id": "drone2",
+      "home": [
+        -122.42110474,
+        37.77449291
+      ],
+      "max_flight_time_min": 20
+    },
+    {
+      "id": "drone3",
+      "home": [
+        -122.42110474,
+        37.77442054
+      ],
+      "max_flight_time_min": 20
+    }
+  ],
+  "limits": {
+    "min_altitude_m": 30,
+    "max_altitude_m": 120,
+    "max_speed_ms": 10,
+    "geo_fence": [
+      [
+        -122.42121839,
+        37.7733621
+      ],
+      [
+        -122.41803621,
+        37.7733621
+      ],
+      [
+        -122.41803621,
+        37.7764379
+      ],
+      [
+        -122.42121839,
+        37.7764379
+      ]
+    ]
+  }
+}

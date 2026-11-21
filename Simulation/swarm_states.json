@@ -1,0 +1,194 @@
+{
+  "drone0": {
+    "drone1": {
+      "patch": 2,
+      "x": 6.16,
+      "y": -11.88,
+      "altitude": -0.37
+    },
+    "drone2": {
+      "patch": 3,
+      "x": 6.17,
+      "y": -12.07,
+      "altitude": 0.01
+    },
+    "drone3": {
+      "patch": 4,
+      "x": 0.02,
+      "y": 0.01,
+      "altitude": 0.02
+    },
+    "drone4": {
+      "patch": 5,
+      "x": 0.04,
+      "y": 0.06,
+      "altitude": -0.07
+    },
+    "drone5": {
+      "patch": 6,
+      "x": 0.01,
+      "y": 0.0,
+      "altitude": 0.0
+    }
+  },
+  "drone1": {
+    "drone0": {
+      "patch": 1,
+      "x": -0.03,
+      "y": 0.01,
+      "altitude": 0.13
+    },
+    "drone2": {
+      "patch": 3,
+      "x": -0.03,
+      "y": 0.01,
+      "altitude": 0.01
+    },
+    "drone3": {
+      "patch": 4,
+      "x": 0.02,
+      "y": 0.01,
+      "altitude": 0.02
+    },
+    "drone4": {
+      "patch": 5,
+      "x": 0.04,
+      "y": 0.06,
+      "altitude": -0.07
+    },
+    "drone5": {
+      "patch": 6,
+      "x": 0.01,
+      "y": 0.0,
+      "altitude": 0.0
+    }
+  },
+  "drone2": {
+    "drone0": {
+      "patch": 1,
+      "x": -0.03,
+      "y": 0.01,
+      "altitude": 0.13
+    },
+    "drone1": {
+      "patch": 2,
+      "x": 0.0,
+      "y": -0.01,
+      "altitude": 0.02
+    },
+    "drone3": {
+      "patch": 4,
+      "x": 0.02,
+      "y": 0.01,
+      "altitude": 0.02
+    },
+    "drone4": {
+      "patch": 5,
+      "x": 0.04,
+      "y": 0.06,
+      "altitude": -0.07
+    },
+    "drone5": {
+      "patch": 6,
+      "x": 0.01,
+      "y": 0.0,
+      "altitude": 0.0
+    }
+  },
+  "drone3": {
+    "drone0": {
+      "patch": 1,
+      "x": -0.03,
+      "y": 0.01,
+      "altitude": 0.13
+    },
+    "drone1": {
+      "patch": 2,
+      "x": 0.0,
+      "y": -0.01,
+      "altitude": 0.02
+    },
+    "drone2": {
+      "patch": 3,
+      "x": -0.03,
+      "y": 0.01,
+      "altitude": 0.01
+    },
+    "drone4": {
+      "patch": 5,
+      "x": 0.04,
+      "y": 0.06,
+      "altitude": -0.07
+    },
+    "drone5": {
+      "patch": 6,
+      "x": 0.01,
+      "y": 0.0,
+      "altitude": 0.0
+    }
+  },
+  "drone4": {
+    "drone0": {
+      "patch": 1,
+      "x": -0.03,
+      "y": 0.01,
+      "altitude": 0.13
+    },
+    "drone1": {
+      "patch": 2,
+      "x": 0.0,
+      "y": -0.01,
+      "altitude": 0.02
+    },
+    "drone2": {
+      "patch": 3,
+      "x": -0.04,
+      "y": 0.01,
+      "altitude": 0.01
+    },
+    "drone3": {
+      "patch": 4,
+      "x": 0.02,
+      "y": 0.01,
+      "altitude": 0.02
+    },
+    "drone5": {
+      "patch": 6,
+      "x": 0.01,
+      "y": -0.0,
+      "altitude": -0.01
+    }
+  },
+  "drone5": {
+    "drone0": {
+      "patch": 1,
+      "x": -0.03,
+      "y": 0.0,
+      "altitude": 0.13
+    },
+    "drone1": {
+      "patch": 2,
+      "x": 0.0,
+      "y": -0.01,
+      "altitude": 0.03
+    },
+    "drone2": {
+      "patch": 3,
+      "x": -0.04,
+      "y": 0.01,
+      "altitude": 0.01
+    },
+    "drone3": {
+      "patch": 4,
+      "x": 0.02,
+      "y": 0.01,
+      "altitude": 0.02
+    },
+    "drone4": {
+      "patch": 5,
+      "x": 0.04,
+      "y": 0.05,
+      "altitude": -0.07
+    }
+  }
+}

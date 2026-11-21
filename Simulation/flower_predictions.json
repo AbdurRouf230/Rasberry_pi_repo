@@ -1,0 +1,623 @@
+{
+  "drone0": {
+    "frame_1": {
+      "image": "/mnt/e/Multi Drone/Merge folder/intelleswarm-ai/genai_framework/px4_gazebo_sim/multi_drone_script/captures/drone0/cm_drone0_image_1_20261005_152950_585466.png",
+      "prediction": [
+        {
+          "species": "zinnia_zinnia_elegans",
+          "confidence": 0.506511926651001,
+          "bbox": [
+            298,
+            290,
+            964,
+            739
+          ],
+          "pollination_status": "damaged",
+          "center_3d": [
+            631.1069107055664,
+            514.85595703125,
+            -0.10756613314151764
+          ],
+          "pollen_source_quality": 0.5047589540481567,
+          "pollen_need_urgency": 0.0
+        }
+      ],
+      "model_ran": true,
+      "image_size": [
+        1280,
+        960
+      ],
+      "inference_ms": 142.7
+    },
+    "frame_2": {
+      "image": "/mnt/e/Multi Drone/Merge folder/intelleswarm-ai/genai_framework/px4_gazebo_sim/multi_drone_script/captures/drone0/cm_drone0_image_2_20261005_153018_736883.png",
+      "prediction": [
+        {
+          "species": "zinnia_zinnia_elegans",
+          "confidence": 0.5044916272163391,
+          "bbox": [
+            297,
+            292,
+            962,
+            741
+          ],
+          "pollination_status": "damaged",
+          "center_3d": [
+            629.873046875,
+            517.2262001037598,
+            -0.10773827135562897
+          ],
+          "pollen_source_quality": 0.5036110877990723,
+          "pollen_need_urgency": 0.0
+        }
+      ],
+      "model_ran": true,
+      "image_size": [
+        1280,
+        960
+      ],
+      "inference_ms": 100.5
+    },
+    "frame_3": {
+      "image": "/mnt/e/Multi Drone/Merge folder/intelleswarm-ai/genai_framework/px4_gazebo_sim/multi_drone_script/captures/drone0/cm_drone0_image_3_20261005_153046_806618.png",
+      "prediction": [
+        {
+          "species": "zinnia_zinnia_elegans",
+          "confidence": 0.5043631196022034,
+          "bbox": [
+            298,
+            292,
+            962,
+            741
+          ],
+          "pollination_status": "damaged",
+          "center_3d": [
+            630.6240081787109,
+            517.1455192565918,
+            -0.1074991375207901
+          ],
+          "pollen_source_quality": 0.5035516023635864,
+          "pollen_need_urgency": 0.0
+        }
+      ],
+      "model_ran": true,
+      "image_size": [
+        1280,
+        960
+      ],
+      "inference_ms": 98.4
+    },
+    "frame_4": {
+      "image": "/mnt/e/Multi Drone/Merge folder/intelleswarm-ai/genai_framework/px4_gazebo_sim/multi_drone_script/captures/drone0/cm_drone0_image_4_20261005_153113_226299.png",
+      "prediction": [
+        {
+          "species": "zinnia_zinnia_elegans",
+          "confidence": 0.5054934024810791,
+          "bbox": [
+            299,
+            289,
+            963,
+            739
+          ],
+          "pollination_status": "damaged",
+          "center_3d": [
+            631.6546630859375,
+            514.8755264282227,
+            -0.10851956903934479
+          ],
+          "pollen_source_quality": 0.504547655582428,
+          "pollen_need_urgency": 0.0
+        }
+      ],
+      "model_ran": true,
+      "image_size": [
+        1280,
+        960
+      ],
+      "inference_ms": 148.0
+    }
+  },
+  "drone1": {
+    "frame_1": {
+      "image": "/mnt/e/Multi Drone/Merge folder/intelleswarm-ai/genai_framework/px4_gazebo_sim/multi_drone_script/captures/drone1/cm_drone1_image_1_20261005_152954_837144.png",
+      "prediction": [
+        {
+          "species": "zinnia_zinnia_elegans",
+          "confidence": 0.5075848698616028,
+          "bbox": [
+            298,
+            288,
+            965,
+            737
+          ],
+          "pollination_status": "damaged",
+          "center_3d": [
+            631.9644927978516,
+            513.2861709594727,
+            -0.10767799615859985
+          ],
+          "pollen_source_quality": 0.5054253935813904,
+          "pollen_need_urgency": 0.0
+        }
+      ],
+      "model_ran": true,
+      "image_size": [
+        1280,
+        960
+      ],
+      "inference_ms": 141.3
+    },
+    "frame_2": {
+      "image": "/mnt/e/Multi Drone/Merge folder/intelleswarm-ai/genai_framework/px4_gazebo_sim/multi_drone_script/captures/drone1/cm_drone1_image_2_20261005_153023_224760.png",
+      "prediction": [
+        {
+          "species": "zinnia_zinnia_elegans",
+          "confidence": 0.5052866339683533,
+          "bbox": [
+            297,
+            291,
+            962,
+            740
+          ],
+          "pollination_status": "damaged",
+          "center_3d": [
+            630.3048324584961,
+            516.1684799194336,
+            -0.10850796103477478
+          ],
+          "pollen_source_quality": 0.5039967894554138,
+          "pollen_need_urgency": 0.0
+        }
+      ],
+      "model_ran": true,
+      "image_size": [
+        1280,
+        960
+      ],
+      "inference_ms": 87.0
+    },
+    "frame_3": {
+      "image": "/mnt/e/Multi Drone/Merge folder/intelleswarm-ai/genai_framework/px4_gazebo_sim/multi_drone_script/captures/drone1/cm_drone1_image_3_20261005_153049_666010.png",
+      "prediction": [
+        {
+          "species": "zinnia_zinnia_elegans",
+          "confidence": 0.5047741532325745,
+          "bbox": [
+            298,
+            292,
+            962,
+            741
+          ],
+          "pollination_status": "damaged",
+          "center_3d": [
+            630.6794357299805,
+            516.8388175964355,
+            -0.10721035301685333
+          ],
+          "pollen_source_quality": 0.5038174390792847,
+          "pollen_need_urgency": 0.0
+        }
+      ],
+      "model_ran": true,
+      "image_size": [
+        1280,
+        960
+      ],
+      "inference_ms": 103.8
+    },
+    "frame_4": {
+      "image": "/mnt/e/Multi Drone/Merge folder/intelleswarm-ai/genai_framework/px4_gazebo_sim/multi_drone_script/captures/drone1/cm_drone1_image_4_20261005_153117_918071.png",
+      "prediction": [
+        {
+          "species": "zinnia_zinnia_elegans",
+          "confidence": 0.5057209730148315,
+          "bbox": [
+            299,
+            289,
+            964,
+            739
+          ],
+          "pollination_status": "damaged",
+          "center_3d": [
+            632.0368194580078,
+            514.0901756286621,
+            -0.10844379663467407
+          ],
+          "pollen_source_quality": 0.5047697424888611,
+          "pollen_need_urgency": 0.0
+        }
+      ],
+      "model_ran": true,
+      "image_size": [
+        1280,
+        960
+      ],
+      "inference_ms": 100.0
+    }
+  },
+  "drone2": {
+    "frame_1": {
+      "image": "/mnt/e/Multi Drone/Merge folder/intelleswarm-ai/genai_framework/px4_gazebo_sim/multi_drone_script/captures/drone2/cm_drone2_image_1_20261005_152957_672233.png",
+      "prediction": [
+        {
+          "species": "zinnia_zinnia_elegans",
+          "confidence": 0.5115907788276672,
+          "bbox": [
+            283,
+            292,
+            973,
+            734
+          ],
+          "pollination_status": "ready",
+          "center_3d": [
+            628.7282943725586,
+            513.445987701416,
+            -0.07153335213661194
+          ],
+          "pollen_source_quality": 0.5026357769966125,
+          "pollen_need_urgency": 0.9
+        }
+      ],
+      "model_ran": true,
+      "image_size": [
+        1280,
+        960
+      ],
+      "inference_ms": 135.7
+    },
+    "frame_2": {
+      "image": "/mnt/e/Multi Drone/Merge folder/intelleswarm-ai/genai_framework/px4_gazebo_sim/multi_drone_script/captures/drone2/cm_drone2_image_2_20261005_153026_241939.png",
+      "prediction": [
+        {
+          "species": "zinnia_zinnia_elegans",
+          "confidence": 0.5127144455909729,
+          "bbox": [
+            288,
+            292,
+            972,
+            736
+          ],
+          "pollination_status": "ready",
+          "center_3d": [
+            630.6361770629883,
+            514.1476821899414,
+            -0.08252440392971039
+          ],
+          "pollen_source_quality": 0.5042740702629089,
+          "pollen_need_urgency": 0.9
+        }
+      ],
+      "model_ran": true,
+      "image_size": [
+        1280,
+        960
+      ],
+      "inference_ms": 94.8
+    },
+    "frame_3": {
+      "image": "/mnt/e/Multi Drone/Merge folder/intelleswarm-ai/genai_framework/px4_gazebo_sim/multi_drone_script/captures/drone2/cm_drone2_image_3_20261005_153054_652750.png",
+      "prediction": [
+        {
+          "species": "zinnia_zinnia_elegans",
+          "confidence": 0.5104637742042542,
+          "bbox": [
+            281,
+            292,
+            974,
+            733
+          ],
+          "pollination_status": "ready",
+          "center_3d": [
+            627.9499816894531,
+            513.3267402648926,
+            -0.06706365942955017
+          ],
+          "pollen_source_quality": 0.5024793148040771,
+          "pollen_need_urgency": 0.9
+        }
+      ],
+      "model_ran": true,
+      "image_size": [
+        1280,
+        960
+      ],
+      "inference_ms": 118.4
+    },
+    "frame_4": {
+      "image": "/mnt/e/Multi Drone/Merge folder/intelleswarm-ai/genai_framework/px4_gazebo_sim/multi_drone_script/captures/drone2/cm_drone2_image_4_20261005_153124_919633.png",
+      "prediction": [
+        {
+          "species": "zinnia_zinnia_elegans",
+          "confidence": 0.5125367045402527,
+          "bbox": [
+            289,
+            292,
+            972,
+            736
+          ],
+          "pollination_status": "ready",
+          "center_3d": [
+            630.7892608642578,
+            514.0936660766602,
+            -0.08344559371471405
+          ],
+          "pollen_source_quality": 0.5042458176612854,
+          "pollen_need_urgency": 0.9
+        }
+      ],
+      "model_ran": true,
+      "image_size": [
+        1280,
+        960
+      ],
+      "inference_ms": 101.2
+    }
+  },
+  "drone4": {
+    "frame_1": {
+      "image": "/mnt/e/Multi Drone/Merge folder/intelleswarm-ai/genai_framework/px4_gazebo_sim/multi_drone_script/captures/drone4/cm_drone4_image_1_20261005_153005_830246.png",
+      "prediction": [
+        {
+          "species": "raspberry_rubus_idaeus",
+          "confidence": 0.5111624002456665,
+          "bbox": [
+            296,
+            289,
+            970,
+            736
+          ],
+          "pollination_status": "ready",
+          "center_3d": [
+            633.3489608764648,
+            512.5586128234863,
+            -0.0979088693857193
+          ],
+          "pollen_source_quality": 0.5057563185691833,
+          "pollen_need_urgency": 0.9
+        }
+      ],
+      "model_ran": true,
+      "image_size": [
+        1280,
+        960
+      ],
+      "inference_ms": 115.3
+    },
+    "frame_2": {
+      "image": "/mnt/e/Multi Drone/Merge folder/intelleswarm-ai/genai_framework/px4_gazebo_sim/multi_drone_script/captures/drone4/cm_drone4_image_2_20261005_153036_094270.png",
+      "prediction": [
+        {
+          "species": "raspberry_rubus_idaeus",
+          "confidence": 0.5116251111030579,
+          "bbox": [
+            295,
+            289,
+            970,
+            736
+          ],
+          "pollination_status": "ready",
+          "center_3d": [
+            633.2085800170898,
+            513.0184364318848,
+            -0.09528864175081253
+          ],
+          "pollen_source_quality": 0.5053685307502747,
+          "pollen_need_urgency": 0.9
+        }
+      ],
+      "model_ran": true,
+      "image_size": [
+        1280,
+        960
+      ],
+      "inference_ms": 112.4
+    },
+    "frame_3": {
+      "image": "/mnt/e/Multi Drone/Merge folder/intelleswarm-ai/genai_framework/px4_gazebo_sim/multi_drone_script/captures/drone4/cm_drone4_image_3_20261005_153104_502575.png",
+      "prediction": [
+        {
+          "species": "zinnia_zinnia_elegans",
+          "confidence": 0.5100927948951721,
+          "bbox": [
+            298,
+            286,
+            968,
+            735
+          ],
+          "pollination_status": "ready",
+          "center_3d": [
+            633.4864807128906,
+            511.212215423584,
+            -0.10556960850954056
+          ],
+          "pollen_source_quality": 0.5064635872840881,
+          "pollen_need_urgency": 0.9
+        }
+      ],
+      "model_ran": true,
+      "image_size": [
+        1280,
+        960
+      ],
+      "inference_ms": 150.8
+    }
+  },
+  "drone5": {
+    "frame_1": {
+      "image": "/mnt/e/Multi Drone/Merge folder/intelleswarm-ai/genai_framework/px4_gazebo_sim/multi_drone_script/captures/drone5/cm_drone5_image_1_20261005_153009_818150.png",
+      "prediction": [
+        {
+          "species": "raspberry_rubus_idaeus",
+          "confidence": 0.5096203088760376,
+          "bbox": [
+            302,
+            281,
+            968,
+            733
+          ],
+          "pollination_status": "ready",
+          "center_3d": [
+            635.631217956543,
+            507.84061431884766,
+            -0.11026699841022491
+          ],
+          "pollen_source_quality": 0.5079832077026367,
+          "pollen_need_urgency": 0.9
+        }
+      ],
+      "model_ran": true,
+      "image_size": [
+        1280,
+        960
+      ],
+      "inference_ms": 99.5
+    },
+    "frame_2": {
+      "image": "/mnt/e/Multi Drone/Merge folder/intelleswarm-ai/genai_framework/px4_gazebo_sim/multi_drone_script/captures/drone5/cm_drone5_image_2_20261005_153042_506992.png",
+      "prediction": [
+        {
+          "species": "raspberry_rubus_idaeus",
+          "confidence": 0.5090753436088562,
+          "bbox": [
+            303,
+            280,
+            968,
+            732
+          ],
+          "pollination_status": "ready",
+          "center_3d": [
+            636.3688278198242,
+            506.62113189697266,
+            -0.11275149881839752
+          ],
+          "pollen_source_quality": 0.508441150188446,
+          "pollen_need_urgency": 0.9
+        }
+      ],
+      "model_ran": true,
+      "image_size": [
+        1280,
+        960
+      ],
+      "inference_ms": 108.9
+    },
+    "frame_3": {
+      "image": "/mnt/e/Multi Drone/Merge folder/intelleswarm-ai/genai_framework/px4_gazebo_sim/multi_drone_script/captures/drone5/cm_drone5_image_3_20261005_153110_577350.png",
+      "prediction": [
+        {
+          "species": "raspberry_rubus_idaeus",
+          "confidence": 0.5087127089500427,
+          "bbox": [
+            304,
+            279,
+            968,
+            732
+          ],
+          "pollination_status": "ready",
+          "center_3d": [
+            636.5750503540039,
+            506.19964599609375,
+            -0.11385069787502289
+          ],
+          "pollen_source_quality": 0.5085458755493164,
+          "pollen_need_urgency": 0.9
+        }
+      ],
+      "model_ran": true,
+      "image_size": [
+        1280,
+        960
+      ],
+      "inference_ms": 126.5
+    }
+  },
+  "drone3": {
+    "frame_1": {
+      "image": "/mnt/e/Multi Drone/Merge folder/intelleswarm-ai/genai_framework/px4_gazebo_sim/multi_drone_script/captures/drone3/cm_drone3_image_1_20261005_153020_942431.png",
+      "prediction": [
+        {
+          "species": "raspberry_rubus_idaeus",
+          "confidence": 0.512211263179779,
+          "bbox": [
+            294,
+            290,
+            970,
+            735
+          ],
+          "pollination_status": "ready",
+          "center_3d": [
+            632.3676681518555,
+            512.9130935668945,
+            -0.09452551603317261
+          ],
+          "pollen_source_quality": 0.5053948163986206,
+          "pollen_need_urgency": 0.9
+        }
+      ],
+      "model_ran": true,
+      "image_size": [
+        1280,
+        960
+      ],
+      "inference_ms": 143.6
+    },
+    "frame_2": {
+      "image": "/mnt/e/Multi Drone/Merge folder/intelleswarm-ai/genai_framework/px4_gazebo_sim/multi_drone_script/captures/drone3/cm_drone3_image_2_20261005_153050_847978.png",
+      "prediction": [
+        {
+          "species": "zinnia_zinnia_elegans",
+          "confidence": 0.5109732747077942,
+          "bbox": [
+            298,
+            286,
+            969,
+            735
+          ],
+          "pollination_status": "ready",
+          "center_3d": [
+            633.9179229736328,
+            511.1111068725586,
+            -0.10274967551231384
+          ],
+          "pollen_source_quality": 0.5065458416938782,
+          "pollen_need_urgency": 0.9
+        }
+      ],
+      "model_ran": true,
+      "image_size": [
+        1280,
+        960
+      ],
+      "inference_ms": 103.5
+    },
+    "frame_3": {
+      "image": "/mnt/e/Multi Drone/Merge folder/intelleswarm-ai/genai_framework/px4_gazebo_sim/multi_drone_script/captures/drone3/cm_drone3_image_3_20261005_153126_930429.png",
+      "prediction": [
+        {
+          "species": "raspberry_rubus_idaeus",
+          "confidence": 0.5115050077438354,
+          "bbox": [
+            296,
+            288,
+            970,
+            736
+          ],
+          "pollination_status": "ready",
+          "center_3d": [
+            633.5667419433594,
+            512.4953842163086,
+            -0.0983266830444336
+          ],
+          "pollen_source_quality": 0.506040632724762,
+          "pollen_need_urgency": 0.9
+        }
+      ],
+      "model_ran": true,
+      "image_size": [
+        1280,
+        960
+      ],
+      "inference_ms": 94.9
+    }
+  }
+}

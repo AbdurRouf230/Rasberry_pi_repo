@@ -1,0 +1,12 @@
+file,expected,pred_hit,infer_ms,n_boxes,max_conf
+hit_online_cardboard_box.jpg,hit,0,16.73,0,0.000
+hit_online_cardbord001.jpg,hit,1,103.99,2,0.574
+hit_online_cardbox4.jpg,hit,1,86.89,2,0.520
+hit_online_history_box.jpg,hit,0,18.21,0,0.000
+hit_online_hollinger.jpg,hit,0,14.29,0,0.000
+hit_online_movingbox.jpg,hit,0,15.30,0,0.000
+hit_online_open_flaps.jpg,hit,0,15.05,0,0.000
+hit_online_umzugskarton.jpg,hit,1,19.10,1,0.486
+miss_online_grass.jpg,miss,1,16.78,1,0.402
+miss_online_sky.jpg,miss,0,15.73,0,0.000
+miss_online_soil.jpg,miss,1,16.41,3,0.437
